@@ -5,6 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.db import check_database
 from app.planets.router import router as planets_router
 from app.resources.router import router as resources_router
+from app.buildings.router import router as buildings_router
 
 
 app = FastAPI(
@@ -24,6 +25,7 @@ app.add_middleware(
 
 app.include_router(planets_router, prefix="/api")
 app.include_router(resources_router, prefix="/api")
+app.include_router(buildings_router, prefix="/api")
 
 
 @app.get("/health")

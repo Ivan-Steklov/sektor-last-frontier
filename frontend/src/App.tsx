@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import "./App.css";
 
 const API_URL = "http://127.0.0.1:8000";
+const TELEGRAM_ID = 1;
 
 type HomePlanet = {
   id: number;
@@ -23,27 +24,52 @@ type Resources = {
   warehouse_capacity: number;
 };
 
+type Building = {
+  code: string;
+  name: string;
+  description: string;
+  level: number;
+};
+
+type BuildingsResponse = {
+  buildings: Building[];
+};
+
 function App() {
   const [planet, setPlanet] = useState<HomePlanet | null>(null);
   const [resources, setResources] = useState<Resources | null>(null);
+  const [buildings, setBuildings] = useState<Building[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadGame() {
       try {
-        const planetResponse = await fetch(
-          `${API_URL}/api/planets/home?telegram_id=1`,
-        );
-        const resourcesResponse = await fetch(
-          `${API_URL}/api/resources/current?telegram_id=1`,
-        );
+        const [planetResponse, resourcesResponse, buildingsResponse] =
+          await Promise.all([
+            fetch(`${API_URL}/api/planets/home?telegram_id=${TELEGRAM_ID}`),
+            fetch(
+              `${API_URL}/api/resources/current?telegram_id=${TELEGRAM_ID}`,
+            ),
+            fetch(
+              `${API_URL}/api/buildings/current?telegram_id=${TELEGRAM_ID}`,
+            ),
+          ]);
 
-        if (!planetResponse.ok || !resourcesResponse.ok) {
+        if (
+          !planetResponse.ok ||
+          !resourcesResponse.ok ||
+          !buildingsResponse.ok
+        ) {
           throw new Error("Сервер вернул ошибку");
         }
 
-        setPlanet(await planetResponse.json());
-        setResources(await resourcesResponse.json());
+        const planetData: HomePlanet = await planetResponse.json();
+        const resourcesData: Resources = await resourcesResponse.json();
+        const buildingsData: BuildingsResponse = await buildingsResponse.json();
+
+        setPlanet(planetData);
+        setResources(resourcesData);
+        setBuildings(buildingsData.buildings);
       } catch {
         setError("Не удалось загрузить данные. Проверьте, запущен ли backend.");
       }
@@ -78,16 +104,19 @@ function App() {
           value={formatAmount(resources?.metal)}
           hint={resources ? `+${resources.metal_per_hour}/ч` : undefined}
         />
+
         <ResourceItem
           label="Кристалл"
           value={formatAmount(resources?.crystal)}
           hint={resources ? `+${resources.crystal_per_hour}/ч` : undefined}
         />
+
         <ResourceItem
           label="Энергия"
           value={formatAmount(resources?.energy)}
           hint="баланс"
         />
+
         <ResourceItem
           label="Население"
           value={formatAmount(resources?.population)}
@@ -96,26 +125,68 @@ function App() {
 
       <nav className="navigation" aria-label="Разделы игры">
         <button className="navigation-button active">Планета</button>
+
         <button className="navigation-button">Строительство</button>
+
         <button className="navigation-button">Флот</button>
+
         <button className="navigation-button">Исследования</button>
+
         <button className="navigation-button">Галактика</button>
+
         <button className="navigation-button">Альянс</button>
       </nav>
 
       <section className="planet-section">
         <div>
           <p className="section-label">Домашняя планета</p>
+
           <h2>Колония производит ресурсы</h2>
+
           <p className="description">
-            Металл и кристалл рассчитывает сервер. Обновите страницу через
-            минуту: значения должны увеличиться.
+            Металл и кристалл рассчитывает сервер. Уровни шахт влияют на
+            скорость производства.
           </p>
         </div>
 
         <div className="planet-visual" aria-label="Вид планеты">
           <div className="planet" />
           <div className="planet-orbit" />
+        </div>
+      </section>
+
+      <section className="buildings-section">
+        <div className="section-heading">
+          <div>
+            <p className="section-label">Инфраструктура</p>
+            <h2>Здания планеты</h2>
+          </div>
+        </div>
+
+        {buildings.length === 0 && !error && (
+          <p className="description">Загрузка зданий...</p>
+        )}
+
+        <div className="buildings-grid">
+          {buildings.map((building) => (
+            <article className="building-item" key={building.code}>
+              <div className="building-item-header">
+                <div>
+                  <p className="building-code">{building.code}</p>
+
+                  <h3>{building.name}</h3>
+                </div>
+
+                <strong className="building-level">Ур. {building.level}</strong>
+              </div>
+
+              <p>{building.description}</p>
+
+              <button className="building-button" disabled>
+                Улучшить позже
+              </button>
+            </article>
+          ))}
         </div>
       </section>
     </main>
@@ -132,7 +203,9 @@ function ResourceItem({ label, value, hint }: ResourceItemProps) {
   return (
     <div className="resource-item">
       <span className="resource-label">{label}</span>
+
       <strong>{value}</strong>
+
       {hint && <span className="resource-hint">{hint}</span>}
     </div>
   );
