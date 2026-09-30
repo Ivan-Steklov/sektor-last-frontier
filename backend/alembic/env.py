@@ -7,6 +7,7 @@ from app.config import settings
 from app.db import Base
 import app.planets.models  # noqa: F401
 import app.users.models  # noqa: F401
+import app.resources.models  # noqa: F401
 
 
 config = context.config

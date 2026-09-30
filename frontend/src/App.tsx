@@ -13,34 +13,45 @@ type HomePlanet = {
   username: string | null;
 };
 
+type Resources = {
+  metal: number;
+  crystal: number;
+  energy: number;
+  population: number;
+  metal_per_hour: number;
+  crystal_per_hour: number;
+  warehouse_capacity: number;
+};
+
 function App() {
   const [planet, setPlanet] = useState<HomePlanet | null>(null);
+  const [resources, setResources] = useState<Resources | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadPlanet() {
+    async function loadGame() {
       try {
-        const response = await fetch(
+        const planetResponse = await fetch(
           `${API_URL}/api/planets/home?telegram_id=1`,
         );
+        const resourcesResponse = await fetch(
+          `${API_URL}/api/resources/current?telegram_id=1`,
+        );
 
-        if (!response.ok) {
-          throw new Error("Сервер не вернул планету");
+        if (!planetResponse.ok || !resourcesResponse.ok) {
+          throw new Error("Сервер вернул ошибку");
         }
 
-        const data: HomePlanet = await response.json();
-        setPlanet(data);
+        setPlanet(await planetResponse.json());
+        setResources(await resourcesResponse.json());
       } catch {
-        setError(
-          "Не удалось загрузить планету. Проверьте, запущен ли backend.",
-        );
+        setError("Не удалось загрузить данные. Проверьте, запущен ли backend.");
       }
     }
 
-    void loadPlanet();
+    void loadGame();
   }, []);
 
-  const planetName = planet?.name ?? "Загрузка...";
   const coordinates = planet
     ? `${planet.galaxy}:${planet.system}:${planet.position}`
     : "...";
@@ -50,7 +61,7 @@ function App() {
       <header className="app-header">
         <div>
           <p className="eyebrow">Сектор: Последний Рубеж</p>
-          <h1>{planetName}</h1>
+          <h1>{planet?.name ?? "Загрузка..."}</h1>
         </div>
 
         <div className="status">
@@ -62,10 +73,25 @@ function App() {
       {error && <p className="description">{error}</p>}
 
       <section className="resource-panel" aria-label="Ресурсы планеты">
-        <ResourceItem label="Металл" value="—" />
-        <ResourceItem label="Кристалл" value="—" />
-        <ResourceItem label="Энергия" value="—" />
-        <ResourceItem label="Население" value="—" />
+        <ResourceItem
+          label="Металл"
+          value={formatAmount(resources?.metal)}
+          hint={resources ? `+${resources.metal_per_hour}/ч` : undefined}
+        />
+        <ResourceItem
+          label="Кристалл"
+          value={formatAmount(resources?.crystal)}
+          hint={resources ? `+${resources.crystal_per_hour}/ч` : undefined}
+        />
+        <ResourceItem
+          label="Энергия"
+          value={formatAmount(resources?.energy)}
+          hint="баланс"
+        />
+        <ResourceItem
+          label="Население"
+          value={formatAmount(resources?.population)}
+        />
       </section>
 
       <nav className="navigation" aria-label="Разделы игры">
@@ -80,10 +106,10 @@ function App() {
       <section className="planet-section">
         <div>
           <p className="section-label">Домашняя планета</p>
-          <h2>Колония готова к развитию</h2>
+          <h2>Колония производит ресурсы</h2>
           <p className="description">
-            Планета сохранена на сервере. Ресурсы и здания подключим следующим
-            этапом.
+            Металл и кристалл рассчитывает сервер. Обновите страницу через
+            минуту: значения должны увеличиться.
           </p>
         </div>
 
@@ -99,15 +125,25 @@ function App() {
 type ResourceItemProps = {
   label: string;
   value: string;
+  hint?: string;
 };
 
-function ResourceItem({ label, value }: ResourceItemProps) {
+function ResourceItem({ label, value, hint }: ResourceItemProps) {
   return (
     <div className="resource-item">
       <span className="resource-label">{label}</span>
       <strong>{value}</strong>
+      {hint && <span className="resource-hint">{hint}</span>}
     </div>
   );
+}
+
+function formatAmount(value: number | undefined): string {
+  if (value === undefined) {
+    return "—";
+  }
+
+  return new Intl.NumberFormat("ru-RU").format(value);
 }
 
 export default App;

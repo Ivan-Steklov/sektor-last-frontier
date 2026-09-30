@@ -214,4 +214,9 @@ h2 {
     grid-template-columns: 1fr;
     padding: 20px;
   }
+
+  .resource-hint {
+  color: #7d8da3;
+  font-size: 13px;
+}
 }
