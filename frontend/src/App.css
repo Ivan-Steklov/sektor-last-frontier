@@ -332,4 +332,49 @@ h2 {
   .building-button:not(:disabled):hover {
     background: #2a4260;
   }
+
+  .energy-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 16px;
+    padding: 18px 20px;
+    border: 1px solid #2b3748;
+    background: #151d28;
+  }
+
+  .energy-panel strong {
+    display: block;
+    margin-top: 6px;
+    color: #ffffff;
+    font-size: 18px;
+  }
+
+  .energy-stats {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+    color: #aab7c9;
+    font-size: 14px;
+  }
+
+  .energy-stats span {
+    padding: 6px 10px;
+    border: 1px solid #344256;
+    border-radius: 999px;
+    background: #101722;
+  }
+
+  @media (max-width: 700px) {
+    .energy-panel {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .energy-stats {
+      justify-content: flex-start;
+    }
+  }
 }

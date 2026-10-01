@@ -22,8 +22,14 @@ type Resources = {
   crystal: number;
   energy: number;
   population: number;
+
   metal_per_hour: number;
   crystal_per_hour: number;
+
+  energy_produced: number;
+  energy_consumed: number;
+  energy_efficiency_percent: number;
+
   warehouse_capacity: number;
 };
 
@@ -69,24 +75,28 @@ function App() {
 
   async function loadGame() {
     try {
-      const [planetResponse, resourcesResponse, buildingsResponse] =
+      const [planetResponse, buildingsResponse] =
         await Promise.all([
           fetch(`${API_URL}/api/planets/home?telegram_id=${TELEGRAM_ID}`),
-          fetch(`${API_URL}/api/resources/current?telegram_id=${TELEGRAM_ID}`),
           fetch(`${API_URL}/api/buildings/current?telegram_id=${TELEGRAM_ID}`),
         ]);
 
-      if (
-        !planetResponse.ok ||
-        !resourcesResponse.ok ||
-        !buildingsResponse.ok
-      ) {
+      if (!planetResponse.ok || !buildingsResponse.ok) {
         throw new Error("Сервер вернул ошибку");
       }
 
       const planetData: HomePlanet = await planetResponse.json();
-      const resourcesData: Resources = await resourcesResponse.json();
       const buildingsData: BuildingsResponse = await buildingsResponse.json();
+
+      const resourcesResponse = await fetch(
+        `${API_URL}/api/resources/current?telegram_id=${TELEGRAM_ID}`,
+      );
+
+      if (!resourcesResponse.ok) {
+        throw new Error("Сервер вернул ошибку");
+      }
+
+      const resourcesData: Resources = await resourcesResponse.json();
 
       setPlanet(planetData);
       setResources(resourcesData);
@@ -200,7 +210,11 @@ function App() {
         <ResourceItem
           label="Энергия"
           value={formatAmount(resources?.energy)}
-          hint="баланс"
+          hint={
+            resources
+              ? `${resources.energy_produced} / ${resources.energy_consumed}`
+              : "баланс"
+          }
         />
 
         <ResourceItem
@@ -208,6 +222,32 @@ function App() {
           value={formatAmount(resources?.population)}
         />
       </section>
+
+      {resources && (
+        <section className="energy-panel">
+          <div>
+            <p className="section-label">Энергосистема</p>
+            <strong>
+              Эффективность производства:{" "}
+              {resources.energy_efficiency_percent}%
+            </strong>
+          </div>
+
+          <div className="energy-stats">
+            <span>
+              Производство: {formatAmount(resources.energy_produced)}
+            </span>
+
+            <span>
+              Потребление: {formatAmount(resources.energy_consumed)}
+            </span>
+
+            <span>
+              Баланс: {formatSignedAmount(resources.energy)}
+            </span>
+          </div>
+        </section>
+      )}
 
       <nav
         className="navigation"
@@ -245,8 +285,8 @@ function App() {
           <h2>Колония производит ресурсы</h2>
 
           <p className="description">
-            Металл и кристалл рассчитывает сервер. Уровни шахт
-            влияют на скорость производства.
+            Металл и кристалл рассчитывает сервер. Если энергии
+            не хватает, производство шахт снижается.
           </p>
         </div>
 
@@ -388,6 +428,17 @@ function formatAmount(
   }
 
   return new Intl.NumberFormat("ru-RU").format(value);
+}
+
+
+function formatSignedAmount(value: number): string {
+  const formatted = new Intl.NumberFormat("ru-RU").format(value);
+
+  if (value > 0) {
+    return `+${formatted}`;
+  }
+
+  return formatted;
 }
 
 

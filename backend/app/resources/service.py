@@ -3,17 +3,20 @@ from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.buildings.repository import get_by_planet_and_code
+from app.buildings.repository import get_by_planet_id
 from app.resources.models import ResourceState
-from app.resources.repository import get_by_planet_id
+from app.resources.repository import get_by_planet_id as get_resource_by_planet_id
 from app.resources.rules import (
     INITIAL_CRYSTAL,
     INITIAL_METAL,
     INITIAL_POPULATION,
+    apply_energy_efficiency,
+    building_energy_consumption,
     calculate_stock,
     crystal_production_per_hour,
-    energy_balance,
+    energy_efficiency,
     metal_production_per_hour,
+    power_plant_energy_production,
     warehouse_capacity,
 )
 from app.resources.schemas import ResourcesResponse
@@ -27,7 +30,7 @@ def ensure_resource_state(
     db: Session,
     planet_id: int,
 ) -> ResourceState:
-    state = get_by_planet_id(db, planet_id)
+    state = get_resource_by_planet_id(db, planet_id)
 
     if state is not None:
         return state
@@ -46,7 +49,7 @@ def ensure_resource_state(
         db.commit()
     except IntegrityError:
         db.rollback()
-        state = get_by_planet_id(db, planet_id)
+        state = get_resource_by_planet_id(db, planet_id)
 
         if state is None:
             raise
@@ -104,28 +107,47 @@ def calculate_current_resource_values(
     planet_id: int,
     state: ResourceState,
 ) -> dict:
-    metal_mine = get_by_planet_and_code(
-        db,
-        planet_id,
-        "metal_mine",
-    )
-    crystal_mine = get_by_planet_and_code(
-        db,
-        planet_id,
-        "crystal_mine",
-    )
-    warehouse = get_by_planet_and_code(
-        db,
-        planet_id,
-        "warehouse",
+    buildings = get_by_planet_id(
+        db=db,
+        planet_id=planet_id,
     )
 
-    metal_level = metal_mine.level if metal_mine else 1
-    crystal_level = crystal_mine.level if crystal_mine else 1
-    warehouse_level = warehouse.level if warehouse else 1
+    levels_by_code = {
+        building.building_code: building.level
+        for building in buildings
+    }
 
-    metal_per_hour = metal_production_per_hour(metal_level)
-    crystal_per_hour = crystal_production_per_hour(crystal_level)
+    metal_mine_level = levels_by_code.get("metal_mine", 1)
+    crystal_mine_level = levels_by_code.get("crystal_mine", 1)
+    power_plant_level = levels_by_code.get("power_plant", 1)
+    warehouse_level = levels_by_code.get("warehouse", 1)
+
+    raw_metal_per_hour = metal_production_per_hour(metal_mine_level)
+    raw_crystal_per_hour = crystal_production_per_hour(crystal_mine_level)
+
+    energy_produced = power_plant_energy_production(power_plant_level)
+    energy_consumed = sum(
+        building_energy_consumption(
+            building_code=building.building_code,
+            level=building.level,
+        )
+        for building in buildings
+    )
+
+    efficiency = energy_efficiency(
+        produced=energy_produced,
+        consumed=energy_consumed,
+    )
+
+    metal_per_hour = apply_energy_efficiency(
+        production_per_hour=raw_metal_per_hour,
+        efficiency=efficiency,
+    )
+    crystal_per_hour = apply_energy_efficiency(
+        production_per_hour=raw_crystal_per_hour,
+        efficiency=efficiency,
+    )
+
     current_capacity = warehouse_capacity(warehouse_level)
 
     now = datetime.now(timezone.utc)
@@ -148,10 +170,13 @@ def calculate_current_resource_values(
             elapsed_seconds,
             current_capacity,
         ),
-        "energy": energy_balance(),
+        "energy": energy_produced - energy_consumed,
         "population": state.population,
         "metal_per_hour": metal_per_hour,
         "crystal_per_hour": crystal_per_hour,
+        "energy_produced": energy_produced,
+        "energy_consumed": energy_consumed,
+        "energy_efficiency_percent": int(efficiency * 100),
         "warehouse_capacity": current_capacity,
         "calculated_at": now,
     }
