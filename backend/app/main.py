@@ -2,10 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.buildings.router import router as buildings_router
 from app.db import check_database
 from app.planets.router import router as planets_router
+from app.research.router import router as research_router
 from app.resources.router import router as resources_router
-from app.buildings.router import router as buildings_router
 
 
 app = FastAPI(
@@ -26,6 +27,7 @@ app.add_middleware(
 app.include_router(planets_router, prefix="/api")
 app.include_router(resources_router, prefix="/api")
 app.include_router(buildings_router, prefix="/api")
+app.include_router(research_router, prefix="/api")
 
 
 @app.get("/health")

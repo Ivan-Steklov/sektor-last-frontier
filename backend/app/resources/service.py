@@ -1,9 +1,14 @@
 from datetime import datetime, timezone
+from math import floor
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.buildings.repository import get_by_planet_id
+from app.research.repository import (
+    get_by_planet_id as get_research_states_by_planet_id,
+)
+from app.research.rules import research_production_multiplier
 from app.resources.models import ResourceState
 from app.resources.repository import get_by_planet_id as get_resource_by_planet_id
 from app.resources.rules import (
@@ -81,19 +86,6 @@ def sync_resources(
     planet_id: int,
     calculated_at: datetime | None = None,
 ) -> ResourceState:
-    """
-    Фиксирует рассчитанные ресурсы в базе.
-
-    Используется перед важными действиями:
-    - списание ресурсов;
-    - завершение строительства;
-    - будущие исследования;
-    - будущая верфь.
-
-    Если calculated_at передан, ресурсы фиксируются именно на этот момент.
-    Это важно при завершении строительства: до finishes_at старые уровни,
-    после finishes_at — новые уровни.
-    """
     state = ensure_resource_state(db, planet_id)
 
     target_time = calculated_at or datetime.now(timezone.utc)
@@ -150,10 +142,18 @@ def calculate_current_resource_values(
         db=db,
         planet_id=planet_id,
     )
+    research_states = get_research_states_by_planet_id(
+        db=db,
+        planet_id=planet_id,
+    )
 
     levels_by_code = {
         building.building_code: building.level
         for building in buildings
+    }
+    research_levels = {
+        research.research_code: research.level
+        for research in research_states
     }
 
     metal_mine_level = levels_by_code.get("metal_mine", 1)
@@ -161,10 +161,23 @@ def calculate_current_resource_values(
     power_plant_level = levels_by_code.get("power_plant", 1)
     warehouse_level = levels_by_code.get("warehouse", 1)
 
-    raw_metal_per_hour = metal_production_per_hour(metal_mine_level)
-    raw_crystal_per_hour = crystal_production_per_hour(crystal_mine_level)
+    metal_research_level = research_levels.get("metal_mining", 0)
+    crystal_research_level = research_levels.get("crystal_mining", 0)
+    energy_research_level = research_levels.get("energy", 0)
 
-    energy_produced = power_plant_energy_production(power_plant_level)
+    raw_metal_per_hour = floor(
+        metal_production_per_hour(metal_mine_level)
+        * research_production_multiplier(metal_research_level)
+    )
+    raw_crystal_per_hour = floor(
+        crystal_production_per_hour(crystal_mine_level)
+        * research_production_multiplier(crystal_research_level)
+    )
+
+    energy_produced = floor(
+        power_plant_energy_production(power_plant_level)
+        * research_production_multiplier(energy_research_level)
+    )
     energy_consumed = sum(
         building_energy_consumption(
             building_code=building.building_code,

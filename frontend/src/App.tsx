@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
+import { ResearchPanel } from "./research/ResearchPanel";
 
 const API_URL = "http://127.0.0.1:8000";
 const TELEGRAM_ID = 1;
@@ -259,15 +260,10 @@ function App() {
 
       <nav className="navigation" aria-label="Разделы игры">
         <button className="navigation-button active">Планета</button>
-
         <button className="navigation-button">Строительство</button>
-
         <button className="navigation-button">Флот</button>
-
         <button className="navigation-button">Исследования</button>
-
         <button className="navigation-button">Галактика</button>
-
         <button className="navigation-button">Альянс</button>
       </nav>
 
@@ -347,6 +343,8 @@ function App() {
           ))}
         </div>
       </section>
+
+      <ResearchPanel apiUrl={API_URL} />
     </main>
   );
 }
