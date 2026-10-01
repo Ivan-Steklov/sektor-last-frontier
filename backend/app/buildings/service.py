@@ -24,6 +24,7 @@ from app.buildings.schemas import (
 from app.resources.service import (
     NotEnoughResourcesError,
     spend_resources,
+    sync_resources,
 )
 
 
@@ -80,8 +81,9 @@ def apply_completed_building_queue(
         return
 
     now = datetime.now(timezone.utc)
+    finishes_at = _as_utc(queue_item.finishes_at)
 
-    if _as_utc(queue_item.finishes_at) > now:
+    if finishes_at > now:
         return
 
     building = get_by_planet_and_code(
@@ -100,6 +102,12 @@ def apply_completed_building_queue(
 
     if building is None:
         raise UnknownBuildingError
+
+    sync_resources(
+        db=db,
+        planet_id=planet_id,
+        calculated_at=finishes_at,
+    )
 
     building.level = queue_item.target_level
     queue_item.status = "completed"

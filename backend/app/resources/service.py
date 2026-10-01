@@ -76,28 +76,66 @@ def get_current_resources(
     return ResourcesResponse(**current)
 
 
+def sync_resources(
+    db: Session,
+    planet_id: int,
+    calculated_at: datetime | None = None,
+) -> ResourceState:
+    """
+    Фиксирует рассчитанные ресурсы в базе.
+
+    Используется перед важными действиями:
+    - списание ресурсов;
+    - завершение строительства;
+    - будущие исследования;
+    - будущая верфь.
+
+    Если calculated_at передан, ресурсы фиксируются именно на этот момент.
+    Это важно при завершении строительства: до finishes_at старые уровни,
+    после finishes_at — новые уровни.
+    """
+    state = ensure_resource_state(db, planet_id)
+
+    target_time = calculated_at or datetime.now(timezone.utc)
+    target_time = _as_utc(target_time)
+
+    last_calculated_at = _as_utc(state.last_calculated_at)
+
+    if target_time < last_calculated_at:
+        target_time = last_calculated_at
+
+    current = calculate_current_resource_values(
+        db=db,
+        planet_id=planet_id,
+        state=state,
+        calculated_at=target_time,
+    )
+
+    state.metal = current["metal"]
+    state.crystal = current["crystal"]
+    state.last_calculated_at = target_time
+
+    db.flush()
+
+    return state
+
+
 def spend_resources(
     db: Session,
     planet_id: int,
     metal_cost: int,
     crystal_cost: int,
 ) -> None:
-    state = ensure_resource_state(db, planet_id)
-
-    current = calculate_current_resource_values(
+    state = sync_resources(
         db=db,
         planet_id=planet_id,
-        state=state,
     )
 
-    if current["metal"] < metal_cost or current["crystal"] < crystal_cost:
+    if state.metal < metal_cost or state.crystal < crystal_cost:
         raise NotEnoughResourcesError
 
-    now = current["calculated_at"]
-
-    state.metal = current["metal"] - metal_cost
-    state.crystal = current["crystal"] - crystal_cost
-    state.last_calculated_at = now
+    state.metal -= metal_cost
+    state.crystal -= crystal_cost
 
     db.flush()
 
@@ -106,6 +144,7 @@ def calculate_current_resource_values(
     db: Session,
     planet_id: int,
     state: ResourceState,
+    calculated_at: datetime | None = None,
 ) -> dict:
     buildings = get_by_planet_id(
         db=db,
@@ -150,7 +189,9 @@ def calculate_current_resource_values(
 
     current_capacity = warehouse_capacity(warehouse_level)
 
-    now = datetime.now(timezone.utc)
+    now = calculated_at or datetime.now(timezone.utc)
+    now = _as_utc(now)
+
     elapsed_seconds = int(
         (
             now - _as_utc(state.last_calculated_at)
