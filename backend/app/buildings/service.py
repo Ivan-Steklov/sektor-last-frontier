@@ -182,7 +182,6 @@ def start_building_upgrade(
     ensure_buildings(db, planet_id)
 
     active_queue = get_active_queue_item(db, planet_id)
-
     if active_queue is not None:
         raise BuildingQueueBusyError
 
@@ -211,25 +210,29 @@ def start_building_upgrade(
             metal_cost=metal_cost,
             crystal_cost=crystal_cost,
         )
+
+        now = datetime.now(timezone.utc)
+
+        add_queue_item(
+            db,
+            BuildingQueueItem(
+                planet_id=planet_id,
+                building_code=building_code,
+                target_level=building.level + 1,
+                status="active",
+                started_at=now,
+                finishes_at=now + timedelta(seconds=upgrade_seconds),
+            ),
+        )
+
+        db.commit()
+
     except NotEnoughResourcesError:
         db.rollback()
         raise
-
-    now = datetime.now(timezone.utc)
-
-    add_queue_item(
-        db,
-        BuildingQueueItem(
-            planet_id=planet_id,
-            building_code=building_code,
-            target_level=building.level + 1,
-            status="active",
-            started_at=now,
-            finishes_at=now + timedelta(seconds=upgrade_seconds),
-        ),
-    )
-
-    db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise BuildingQueueBusyError
 
 
 def _to_queue_response(
