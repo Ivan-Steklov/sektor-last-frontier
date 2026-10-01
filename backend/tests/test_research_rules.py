@@ -1,4 +1,6 @@
 from app.research.rules import (
+    required_research_center_level,
+    research_center_requirement_met,
     research_production_multiplier,
     research_upgrade_cost,
     research_upgrade_seconds,
@@ -30,3 +32,13 @@ def test_research_time_grows_with_level() -> None:
 def test_production_multiplier_grows_with_level() -> None:
     assert research_production_multiplier(1) == 1.08
     assert research_production_multiplier(2) > research_production_multiplier(1)
+
+
+def test_required_research_center_level_matches_next_level() -> None:
+    assert required_research_center_level(1) == 1
+    assert required_research_center_level(3) == 3
+
+
+def test_research_center_requirement_check() -> None:
+    assert research_center_requirement_met(2, 2) is True
+    assert research_center_requirement_met(1, 2) is False

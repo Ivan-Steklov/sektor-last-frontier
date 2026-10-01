@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from app.buildings.repository import get_by_planet_and_code as get_building_by_planet_and_code
 from app.buildings.service import ensure_buildings
 from app.planets.service import get_or_create_home_planet
 from app.research.repository import (
@@ -10,6 +11,7 @@ from app.research.repository import (
 )
 from app.research.service import (
     ResearchQueueBusyError,
+    ResearchRequirementsNotMetError,
     apply_completed_research_queue,
     ensure_research,
     start_research,
@@ -24,6 +26,7 @@ from app.resources.service import (
 
 def test_start_research_creates_queue_and_spends_resources(db_session) -> None:
     planet = get_or_create_home_planet(db_session, telegram_id=2001)
+    ensure_buildings(db_session, planet.id)
     ensure_research(db_session, planet.id)
     resource_state = ensure_resource_state(db_session, planet.id)
 
@@ -50,6 +53,7 @@ def test_start_research_creates_queue_and_spends_resources(db_session) -> None:
 
 def test_cannot_start_second_research_while_queue_is_active(db_session) -> None:
     planet = get_or_create_home_planet(db_session, telegram_id=2002)
+    ensure_buildings(db_session, planet.id)
     ensure_research(db_session, planet.id)
     ensure_resource_state(db_session, planet.id)
 
@@ -69,6 +73,7 @@ def test_cannot_start_second_research_while_queue_is_active(db_session) -> None:
 
 def test_completed_research_levels_up_once(db_session) -> None:
     planet = get_or_create_home_planet(db_session, telegram_id=2003)
+    ensure_buildings(db_session, planet.id)
     ensure_research(db_session, planet.id)
     ensure_resource_state(db_session, planet.id)
 
@@ -108,6 +113,7 @@ def test_completed_research_levels_up_once(db_session) -> None:
 
 def test_not_enough_resources_prevents_research(db_session) -> None:
     planet = get_or_create_home_planet(db_session, telegram_id=2004)
+    ensure_buildings(db_session, planet.id)
     ensure_research(db_session, planet.id)
     resource_state = ensure_resource_state(db_session, planet.id)
 
@@ -150,3 +156,37 @@ def test_completed_metal_research_increases_production(db_session) -> None:
     after = get_current_resources(db_session, planet.id)
 
     assert after.metal_per_hour > before.metal_per_hour
+
+
+def test_research_requires_research_center_level(db_session) -> None:
+    planet = get_or_create_home_planet(db_session, telegram_id=2006)
+    ensure_buildings(db_session, planet.id)
+    ensure_research(db_session, planet.id)
+    ensure_resource_state(db_session, planet.id)
+
+    research_center = get_building_by_planet_and_code(
+        db_session,
+        planet.id,
+        "research_center",
+    )
+    assert research_center is not None
+
+    research_center.level = 1
+    db_session.commit()
+
+    metal_research = get_by_planet_and_code(
+        db_session,
+        planet.id,
+        "metal_mining",
+    )
+    assert metal_research is not None
+
+    metal_research.level = 1
+    db_session.commit()
+
+    with pytest.raises(ResearchRequirementsNotMetError):
+        start_research(
+            db=db_session,
+            planet_id=planet.id,
+            research_code="metal_mining",
+        )

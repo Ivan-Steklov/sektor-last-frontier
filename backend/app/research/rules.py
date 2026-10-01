@@ -53,3 +53,14 @@ def research_upgrade_seconds(
 
 def research_production_multiplier(level: int) -> float:
     return 1 + 0.08 * level
+
+
+def required_research_center_level(next_level: int) -> int:
+    return next_level
+
+
+def research_center_requirement_met(
+    research_center_level: int,
+    next_level: int,
+) -> bool:
+    return research_center_level >= required_research_center_level(next_level)

@@ -13,6 +13,8 @@ class ResearchItemResponse(BaseModel):
     upgrade_metal_cost: int
     upgrade_crystal_cost: int
     upgrade_seconds: int
+    required_research_center_level: int
+    requirements_met: bool
     can_research: bool
     is_in_queue: bool
 

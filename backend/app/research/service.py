@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.buildings.repository import get_by_planet_and_code as get_building_by_planet_and_code
 from app.research.catalog import RESEARCH, RESEARCH_BY_CODE
 from app.research.models import ResearchQueueItem, ResearchState
 from app.research.repository import (
@@ -13,6 +14,8 @@ from app.research.repository import (
     get_by_planet_id,
 )
 from app.research.rules import (
+    required_research_center_level,
+    research_center_requirement_met,
     research_upgrade_cost,
     research_upgrade_seconds,
 )
@@ -33,6 +36,10 @@ class UnknownResearchError(Exception):
 
 
 class ResearchQueueBusyError(Exception):
+    pass
+
+
+class ResearchRequirementsNotMetError(Exception):
     pass
 
 
@@ -130,10 +137,19 @@ def get_current_research(
         for state in states
     }
 
+    research_center = get_building_by_planet_and_code(
+        db,
+        planet_id,
+        "research_center",
+    )
+    research_center_level = research_center.level if research_center else 1
+
     research_items = []
 
     for definition in RESEARCH:
         state = states_by_code[definition.code]
+        next_level = state.level + 1
+
         metal_cost, crystal_cost = research_upgrade_cost(
             definition.code,
             state.level,
@@ -142,6 +158,12 @@ def get_current_research(
             definition.code,
             state.level,
         )
+        required_center_level = required_research_center_level(next_level)
+        requirements_met = research_center_requirement_met(
+            research_center_level=research_center_level,
+            next_level=next_level,
+        )
+
         is_in_queue = (
             active_queue is not None
             and active_queue.research_code == definition.code
@@ -154,11 +176,13 @@ def get_current_research(
                 description=definition.description,
                 effect=definition.effect,
                 level=state.level,
-                next_level=state.level + 1,
+                next_level=next_level,
                 upgrade_metal_cost=metal_cost,
                 upgrade_crystal_cost=crystal_cost,
                 upgrade_seconds=upgrade_seconds,
-                can_research=active_queue is None,
+                required_research_center_level=required_center_level,
+                requirements_met=requirements_met,
+                can_research=active_queue is None and requirements_met,
                 is_in_queue=is_in_queue,
             )
         )
@@ -193,6 +217,20 @@ def start_research(
 
     if research is None:
         raise UnknownResearchError
+
+    research_center = get_building_by_planet_and_code(
+        db,
+        planet_id,
+        "research_center",
+    )
+    research_center_level = research_center.level if research_center else 1
+    next_level = research.level + 1
+
+    if not research_center_requirement_met(
+        research_center_level=research_center_level,
+        next_level=next_level,
+    ):
+        raise ResearchRequirementsNotMetError
 
     metal_cost, crystal_cost = research_upgrade_cost(
         research_code,

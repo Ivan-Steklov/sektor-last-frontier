@@ -6,6 +6,7 @@ from app.planets.service import get_or_create_home_planet
 from app.research.schemas import ResearchListResponse
 from app.research.service import (
     ResearchQueueBusyError,
+    ResearchRequirementsNotMetError,
     UnknownResearchError,
     get_current_research,
     start_research,
@@ -61,6 +62,11 @@ def upgrade_research(
         raise HTTPException(
             status_code=409,
             detail="Очередь исследований уже занята.",
+        )
+    except ResearchRequirementsNotMetError:
+        raise HTTPException(
+            status_code=400,
+            detail="Недостаточный уровень исследовательского центра.",
         )
     except NotEnoughResourcesError:
         raise HTTPException(

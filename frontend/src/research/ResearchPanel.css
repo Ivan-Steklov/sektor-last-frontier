@@ -67,9 +67,14 @@
 
 .research-item p,
 .research-effect,
-.research-cost {
+.research-cost,
+.research-requirement {
   color: #aab7c9;
   line-height: 1.5;
+}
+
+.research-requirement-warning {
+  color: #ffb4b4;
 }
 
 .research-button {

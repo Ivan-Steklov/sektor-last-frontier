@@ -12,6 +12,8 @@ type ResearchItem = {
   upgrade_metal_cost: number;
   upgrade_crystal_cost: number;
   upgrade_seconds: number;
+  required_research_center_level: number;
+  requirements_met: boolean;
   can_research: boolean;
   is_in_queue: boolean;
 };
@@ -57,7 +59,7 @@ export function ResearchPanel({ apiUrl }: ResearchPanelProps) {
   }
 
   useEffect(() => {
-    loadResearch().catch((loadError: unknown) => {
+    void loadResearch().catch((loadError: unknown) => {
       setError(
         loadError instanceof Error
           ? loadError.message
@@ -74,7 +76,7 @@ export function ResearchPanel({ apiUrl }: ResearchPanelProps) {
     const timerId = window.setInterval(() => {
       setRemainingSeconds((current) => {
         if (current <= 1) {
-          loadResearch().catch(() => {
+          void loadResearch().catch(() => {
             setError("Не удалось обновить исследование");
           });
           return 0;
@@ -156,6 +158,17 @@ export function ResearchPanel({ apiUrl }: ResearchPanelProps) {
               {item.upgrade_crystal_cost} кристалла,{" "}
               {formatDuration(item.upgrade_seconds)}
             </p>
+
+            <p className="research-requirement">
+              Требуется исследовательский центр ур.{" "}
+              {item.required_research_center_level}
+            </p>
+
+            {!item.requirements_met && (
+              <p className="research-requirement research-requirement-warning">
+                Требования не выполнены
+              </p>
+            )}
 
             <button
               className="research-button"
