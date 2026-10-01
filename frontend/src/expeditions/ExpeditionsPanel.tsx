@@ -173,7 +173,8 @@ export function ExpeditionsPanel({ apiUrl }: ExpeditionsPanelProps) {
     }
   }
 
-  const expeditionActive = state?.active_expedition !== null && state?.active_expedition !== undefined;
+  const expeditionActive =
+    state?.active_expedition !== null && state?.active_expedition !== undefined;
 
   return (
     <section className="expeditions-section">
@@ -182,6 +183,15 @@ export function ExpeditionsPanel({ apiUrl }: ExpeditionsPanelProps) {
           <p className="expeditions-label">Флот</p>
           <h2>Экспедиции</h2>
         </div>
+      </div>
+
+      <div className="expeditions-bonuses">
+        <strong>Исследования влияют на экспедиции</strong>
+        <ul>
+          <li>Двигатели уменьшают время полёта.</li>
+          <li>Грузовые системы увеличивают найденную добычу.</li>
+          <li>Разведка снижает риск потерь.</li>
+        </ul>
       </div>
 
       {state?.active_expedition && (
@@ -196,14 +206,11 @@ export function ExpeditionsPanel({ apiUrl }: ExpeditionsPanelProps) {
         <div className="expeditions-result">
           <strong>Последний результат</strong>
           <p>{state.last_result.description}</p>
+          <p>Возврат: {formatShips(state.last_result.returned_ships)}</p>
+          <p>Потери: {formatShips(state.last_result.lost_ships)}</p>
           <p>
-            Возврат: {formatShips(state.last_result.returned_ships)}
-          </p>
-          <p>
-            Потери: {formatShips(state.last_result.lost_ships)}
-          </p>
-          <p>
-            Металл: {state.last_result.metal_found} / Кристалл: {state.last_result.crystal_found}
+            Металл: {state.last_result.metal_found} / Кристалл:{" "}
+            {state.last_result.crystal_found}
           </p>
         </div>
       )}

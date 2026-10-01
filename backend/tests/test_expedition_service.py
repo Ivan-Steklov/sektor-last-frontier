@@ -142,7 +142,7 @@ def test_completed_expedition_returns_last_result(db_session, monkeypatch) -> No
 
     monkeypatch.setattr(
         "app.expeditions.service.roll_expedition_result",
-        lambda sent_ships: {
+        lambda sent_ships, recon_level, cargo_level: {
             "outcome": "metal",
             "metal_found": 500,
             "crystal_found": 0,

@@ -17,6 +17,7 @@
   margin: 0;
 }
 
+.expeditions-bonuses,
 .expeditions-active,
 .expeditions-result,
 .expeditions-error,
@@ -25,6 +26,12 @@
   padding: 16px;
   border: 1px solid #2b3748;
   background: #151d28;
+}
+
+.expeditions-bonuses ul {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: #b7c5d8;
 }
 
 .expeditions-error {

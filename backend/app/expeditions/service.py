@@ -19,6 +19,7 @@ from app.expeditions.schemas import (
     ExpeditionResultPayload,
     ExpeditionFleetPayload,
 )
+from app.research.repository import get_by_planet_and_code as get_research_by_planet_and_code
 from app.resources.repository import get_by_planet_id as get_resource_by_planet_id
 from app.resources.service import ensure_resource_state, sync_resources
 from app.ships.repository import get_by_planet_and_code
@@ -99,8 +100,14 @@ def start_expedition(
 
         ship_state.quantity -= quantity
 
+    engines_level = _get_research_level(
+        db,
+        planet_id,
+        "engines",
+    )
+
     now = datetime.now(timezone.utc)
-    duration = expedition_duration_seconds()
+    duration = expedition_duration_seconds(engines_level)
 
     try:
         add_expedition(
@@ -143,7 +150,22 @@ def apply_completed_expedition(
         calculated_at=finishes_at,
     )
 
-    result_payload = roll_expedition_result(active_item.sent_ships)
+    recon_level = _get_research_level(
+        db,
+        planet_id,
+        "recon",
+    )
+    cargo_level = _get_research_level(
+        db,
+        planet_id,
+        "cargo",
+    )
+
+    result_payload = roll_expedition_result(
+        active_item.sent_ships,
+        recon_level=recon_level,
+        cargo_level=cargo_level,
+    )
 
     for ship_code, returned_quantity in result_payload["returned_ships"].items():
         ship_state = get_by_planet_and_code(
@@ -164,6 +186,23 @@ def apply_completed_expedition(
     active_item.result_payload = result_payload
 
     db.commit()
+
+
+def _get_research_level(
+    db: Session,
+    planet_id: int,
+    research_code: str,
+) -> int:
+    research_state = get_research_by_planet_and_code(
+        db,
+        planet_id,
+        research_code,
+    )
+
+    if research_state is None:
+        return 0
+
+    return research_state.level
 
 
 def _to_queue_response(
