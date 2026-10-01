@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
+import { ExpeditionsPanel } from "./expeditions/ExpeditionsPanel";
 import { ResearchPanel } from "./research/ResearchPanel";
+import { ShipsPanel } from "./ships/ShipsPanel";
 
 const API_URL = "http://127.0.0.1:8000";
 const TELEGRAM_ID = 1;
@@ -20,14 +22,11 @@ type Resources = {
   crystal: number;
   energy: number;
   population: number;
-
   metal_per_hour: number;
   crystal_per_hour: number;
-
   energy_produced: number;
   energy_consumed: number;
   energy_efficiency_percent: number;
-
   warehouse_capacity: number;
 };
 
@@ -250,9 +249,7 @@ function App() {
 
           <div className="energy-stats">
             <span>Производство: {formatAmount(resources.energy_produced)}</span>
-
             <span>Потребление: {formatAmount(resources.energy_consumed)}</span>
-
             <span>Баланс: {formatSignedAmount(resources.energy)}</span>
           </div>
         </section>
@@ -270,9 +267,7 @@ function App() {
       <section className="planet-section">
         <div>
           <p className="section-label">Домашняя планета</p>
-
           <h2>Колония производит ресурсы</h2>
-
           <p className="description">
             Металл и кристалл рассчитывает сервер. Если энергии не хватает,
             производство шахт снижается.
@@ -345,6 +340,8 @@ function App() {
       </section>
 
       <ResearchPanel apiUrl={API_URL} />
+      <ShipsPanel apiUrl={API_URL} />
+      <ExpeditionsPanel apiUrl={API_URL} />
     </main>
   );
 }
@@ -395,7 +392,6 @@ function BuildingCard({
       <div className="building-item-header">
         <div>
           <p className="building-code">{building.code}</p>
-
           <h3>{building.name}</h3>
         </div>
 
@@ -516,9 +512,7 @@ function ResourceItem({ label, value, hint }: ResourceItemProps) {
   return (
     <div className="resource-item">
       <span className="resource-label">{label}</span>
-
       <strong>{value}</strong>
-
       {hint && <span className="resource-hint">{hint}</span>}
     </div>
   );

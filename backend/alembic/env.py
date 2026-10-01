@@ -10,6 +10,8 @@ import app.users.models  # noqa: F401
 import app.resources.models  # noqa: F401
 import app.buildings.models  # noqa: F401
 import app.research.models  # noqa: F401
+import app.ships.models  # noqa: F401
+import app.expeditions.models  # noqa: F401
 
 
 config = context.config
