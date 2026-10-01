@@ -19,6 +19,10 @@ from app.resources.rules import (
 from app.resources.schemas import ResourcesResponse
 
 
+class NotEnoughResourcesError(Exception):
+    pass
+
+
 def ensure_resource_state(
     db: Session,
     planet_id: int,
@@ -50,6 +54,7 @@ def ensure_resource_state(
         return state
 
     db.refresh(state)
+
     return state
 
 
@@ -59,6 +64,46 @@ def get_current_resources(
 ) -> ResourcesResponse:
     state = ensure_resource_state(db, planet_id)
 
+    current = calculate_current_resource_values(
+        db=db,
+        planet_id=planet_id,
+        state=state,
+    )
+
+    return ResourcesResponse(**current)
+
+
+def spend_resources(
+    db: Session,
+    planet_id: int,
+    metal_cost: int,
+    crystal_cost: int,
+) -> None:
+    state = ensure_resource_state(db, planet_id)
+
+    current = calculate_current_resource_values(
+        db=db,
+        planet_id=planet_id,
+        state=state,
+    )
+
+    if current["metal"] < metal_cost or current["crystal"] < crystal_cost:
+        raise NotEnoughResourcesError
+
+    now = current["calculated_at"]
+
+    state.metal = current["metal"] - metal_cost
+    state.crystal = current["crystal"] - crystal_cost
+    state.last_calculated_at = now
+
+    db.flush()
+
+
+def calculate_current_resource_values(
+    db: Session,
+    planet_id: int,
+    state: ResourceState,
+) -> dict:
     metal_mine = get_by_planet_and_code(
         db,
         planet_id,
@@ -90,26 +135,26 @@ def get_current_resources(
         ).total_seconds()
     )
 
-    return ResourcesResponse(
-        metal=calculate_stock(
+    return {
+        "metal": calculate_stock(
             state.metal,
             metal_per_hour,
             elapsed_seconds,
             current_capacity,
         ),
-        crystal=calculate_stock(
+        "crystal": calculate_stock(
             state.crystal,
             crystal_per_hour,
             elapsed_seconds,
             current_capacity,
         ),
-        energy=energy_balance(),
-        population=state.population,
-        metal_per_hour=metal_per_hour,
-        crystal_per_hour=crystal_per_hour,
-        warehouse_capacity=current_capacity,
-        calculated_at=now,
-    )
+        "energy": energy_balance(),
+        "population": state.population,
+        "metal_per_hour": metal_per_hour,
+        "crystal_per_hour": crystal_per_hour,
+        "warehouse_capacity": current_capacity,
+        "calculated_at": now,
+    }
 
 
 def _as_utc(value: datetime) -> datetime:
