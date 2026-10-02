@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+
 from app.galaxy.repository import (
     get_active_resource_mission_by_planet_id,
     get_active_scout_mission_by_planet_id,
@@ -21,6 +22,7 @@ from app.planets.service import get_or_create_home_planet
 from app.resources.service import get_current_resources
 from app.ships.repository import get_by_planet_and_code
 from app.ships.service import ensure_ships
+from app.galaxy.service import _build_resource_mission_result
 
 
 def _scout_system(
@@ -299,3 +301,88 @@ def test_completed_resource_mission_returns_transport_and_resources(db_session) 
 
     assert resources_after.metal >= resources_before.metal
     assert resources_after.crystal >= resources_before.crystal
+
+def test_low_danger_resource_mission_has_full_reward() -> None:
+    result = _build_resource_mission_result(
+        target_galaxy=1,
+        target_system=4,
+        scout_report={
+            "richness": "богатая",
+            "danger": "низкая",
+            "danger_level": 1,
+            "discovered_signals": 0,
+        },
+    )
+
+    assert result["metal_found"] == 360
+    assert result["crystal_found"] == 140
+    assert result["transport_lost"] is False
+    assert result["cargo_loss_percent"] == 0
+
+
+def test_medium_danger_resource_mission_loses_part_of_cargo() -> None:
+    result = _build_resource_mission_result(
+        target_galaxy=1,
+        target_system=4,
+        scout_report={
+            "richness": "богатая",
+            "danger": "средняя",
+            "danger_level": 2,
+            "discovered_signals": 0,
+        },
+    )
+
+    assert result["metal_found"] == 252
+    assert result["crystal_found"] == 98
+    assert result["transport_lost"] is False
+    assert result["cargo_loss_percent"] == 30
+
+
+def test_high_danger_can_destroy_transport(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.galaxy.service.random.random",
+        lambda: 0.1,
+    )
+
+    result = _build_resource_mission_result(
+        target_galaxy=1,
+        target_system=4,
+        scout_report={
+            "richness": "богатая",
+            "danger": "высокая",
+            "danger_level": 3,
+            "discovered_signals": 0,
+        },
+    )
+
+    assert result["metal_found"] == 0
+    assert result["crystal_found"] == 0
+    assert result["transport_lost"] is True
+    assert result["cargo_loss_percent"] == 100
+
+
+def test_high_danger_can_return_with_half_cargo(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.galaxy.service.random.random",
+        lambda: 0.9,
+    )
+
+    result = _build_resource_mission_result(
+        target_galaxy=1,
+        target_system=4,
+        scout_report={
+            "richness": "богатая",
+            "danger": "высокая",
+            "danger_level": 3,
+            "discovered_signals": 0,
+        },
+    )
+
+    assert result["metal_found"] == 180
+    assert result["crystal_found"] == 70
+    assert result["transport_lost"] is False
+    assert result["cargo_loss_percent"] == 50

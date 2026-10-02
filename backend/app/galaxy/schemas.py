@@ -54,6 +54,10 @@ class GalaxyResourceMissionResultResponse(BaseModel):
     target_system: int
     metal_found: int
     crystal_found: int
+    danger: str
+    danger_level: int
+    transport_lost: bool = False
+    cargo_loss_percent: int = 0
     description: str
     completed_at: datetime
 

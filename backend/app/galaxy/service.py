@@ -1,3 +1,4 @@
+import random
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.exc import IntegrityError
@@ -233,8 +234,12 @@ def get_galaxy_resource_mission_state(
         and last_completed.result_payload is not None
         and last_completed.completed_at is not None
     ):
+        payload = _normalize_resource_result_payload(
+            last_completed.result_payload
+        )
+
         last_result = GalaxyResourceMissionResultResponse(
-            **last_completed.result_payload,
+            **payload,
             completed_at=last_completed.completed_at,
         )
 
@@ -491,9 +496,6 @@ def apply_completed_resource_mission(
         ship_code="transport",
     )
 
-    if transport_state is not None:
-        transport_state.quantity += 1
-
     known_system = get_known_system(
         db=db,
         planet_id=planet_id,
@@ -508,6 +510,9 @@ def apply_completed_resource_mission(
         target_system=active_mission.target_system,
         scout_report=report_payload,
     )
+
+    if transport_state is not None and not result_payload["transport_lost"]:
+        transport_state.quantity += 1
 
     resource_state = sync_resources(
         db=db,
@@ -604,8 +609,21 @@ def _build_resource_mission_result(
     target_system: int,
     scout_report: dict,
 ) -> dict:
-    richness = str(scout_report.get("richness", "обычная")).lower()
-    discovered_signals = int(scout_report.get("discovered_signals", 0))
+    richness = str(
+        scout_report.get("richness", "обычная")
+    ).lower()
+
+    danger = str(
+        scout_report.get("danger", "низкая")
+    ).lower()
+
+    danger_level = int(
+        scout_report.get("danger_level", 1)
+    )
+
+    discovered_signals = int(
+        scout_report.get("discovered_signals", 0)
+    )
 
     if "богат" in richness:
         metal_found = 360
@@ -620,15 +638,78 @@ def _build_resource_mission_result(
     metal_found += discovered_signals * 35
     crystal_found += discovered_signals * 15
 
+    transport_lost = False
+    cargo_loss_percent = 0
+
+    if danger_level <= 1:
+        description = (
+            f"Транспорт вернулся из системы "
+            f"{target_galaxy}:{target_system}. "
+            f"Миссия прошла безопасно."
+        )
+
+    elif danger_level == 2:
+        cargo_loss_percent = 30
+
+        metal_found = metal_found * 70 // 100
+        crystal_found = crystal_found * 70 // 100
+
+        description = (
+            f"Транспорт вернулся из системы "
+            f"{target_galaxy}:{target_system}, "
+            f"но часть груза была потеряна."
+        )
+
+    else:
+        roll = random.random()
+
+        if roll < 0.25:
+            transport_lost = True
+            cargo_loss_percent = 100
+            metal_found = 0
+            crystal_found = 0
+
+            description = (
+                f"Транспорт потерян в системе "
+                f"{target_galaxy}:{target_system}. "
+                f"Опасность оказалась критической."
+            )
+        else:
+            cargo_loss_percent = 50
+
+            metal_found = metal_found * 50 // 100
+            crystal_found = crystal_found * 50 // 100
+
+            description = (
+                f"Транспорт вернулся из системы "
+                f"{target_galaxy}:{target_system}, "
+                f"но потерял часть груза."
+            )
+
     return {
         "target_galaxy": target_galaxy,
         "target_system": target_system,
         "metal_found": metal_found,
         "crystal_found": crystal_found,
-        "description": (
-            f"Транспорт вернулся из системы {target_galaxy}:{target_system}. "
-            f"Добыто: металл {metal_found}, кристалл {crystal_found}."
-        ),
+        "danger": danger,
+        "danger_level": danger_level,
+        "transport_lost": transport_lost,
+        "cargo_loss_percent": cargo_loss_percent,
+        "description": description,
+    }
+
+
+def _normalize_resource_result_payload(payload: dict) -> dict:
+    return {
+        "target_galaxy": payload.get("target_galaxy", 0),
+        "target_system": payload.get("target_system", 0),
+        "metal_found": payload.get("metal_found", 0),
+        "crystal_found": payload.get("crystal_found", 0),
+        "danger": payload.get("danger", "неизвестно"),
+        "danger_level": payload.get("danger_level", 0),
+        "transport_lost": payload.get("transport_lost", False),
+        "cargo_loss_percent": payload.get("cargo_loss_percent", 0),
+        "description": payload.get("description", ""),
     }
 
 
