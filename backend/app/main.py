@@ -5,6 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.buildings.router import router as buildings_router
 from app.db import check_database
 from app.expeditions.router import router as expeditions_router
+from app.galaxy.router import router as galaxy_router
 from app.planets.router import router as planets_router
 from app.research.router import router as research_router
 from app.resources.router import router as resources_router
@@ -32,6 +33,7 @@ app.include_router(buildings_router, prefix="/api")
 app.include_router(research_router, prefix="/api")
 app.include_router(ships_router, prefix="/api")
 app.include_router(expeditions_router, prefix="/api")
+app.include_router(galaxy_router, prefix="/api")
 
 
 @app.get("/health")
