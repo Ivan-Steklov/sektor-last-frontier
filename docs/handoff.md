@@ -329,3 +329,12 @@ Backend не менялся, используются уже существую�
 
 Это был минимальный безопасный фикс без переписывания business logic.
 ```
+## Последний шаг
+После ручной проверки JSON galaxy endpoints подтверждено, что backend отдает корректные ISO datetime strings.
+
+Для закрепления результата добавлены тесты на datetime contract:
+- сериализация mission timestamps;
+- сериализация report/result completion timestamps;
+- добавление UTC для naive datetime.
+
+Это снижает риск регрессии в countdown/API-contract части galaxy.

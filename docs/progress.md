@@ -325,3 +325,16 @@ Countdown scout/resource missions теперь строится от `remaining_
 Результат:
 - backend-импорты снова консистентны;
 - galaxy API отдает стабильные datetime-строки без переписывания service/router.
+### Backend tests: galaxy datetime contract
+Добавлены тесты на сериализацию datetime в galaxy response models.
+
+Покрыто:
+- `started_at` / `finishes_at` для active scout mission;
+- `completed_at` для scout last report;
+- `started_at` / `finishes_at` для active resource mission;
+- `completed_at` для resource mission last result;
+- нормализация naive datetime к UTC при JSON-сериализации.
+
+Цель:
+- зафиксировать текущий galaxy API datetime contract тестами;
+- не допустить повторного дрейфа форматов времени.
