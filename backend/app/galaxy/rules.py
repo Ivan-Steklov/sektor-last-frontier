@@ -1,4 +1,5 @@
 MAX_SECTOR_RADIUS = 5
+MAX_SCOUT_DISTANCE = 5
 
 
 def normalize_sector_radius(radius: int) -> int:
@@ -70,3 +71,63 @@ def system_danger_label(
         return "средняя"
 
     return "низкая"
+
+
+def scout_duration_seconds(
+    distance: int,
+) -> int:
+    safe_distance = max(1, distance)
+
+    return min(180, 45 + safe_distance * 15)
+
+
+def scout_discovered_signals(
+    galaxy: int,
+    system: int,
+) -> int:
+    return ((galaxy * 19 + system * 23) % 4) + 1
+
+
+def build_scout_report(
+    target_galaxy: int,
+    target_system: int,
+) -> dict:
+    danger_level = system_danger_level(
+        galaxy=target_galaxy,
+        system=target_system,
+    )
+    richness = system_richness(
+        galaxy=target_galaxy,
+        system=target_system,
+    )
+    danger = system_danger_label(danger_level)
+    discovered_signals = scout_discovered_signals(
+        galaxy=target_galaxy,
+        system=target_system,
+    )
+
+    if danger_level >= 3:
+        description = (
+            f"Разведка системы {target_galaxy}:{target_system} обнаружила "
+            "нестабильные сигналы и повышенную активность неизвестных объектов."
+        )
+    elif richness == "богатая":
+        description = (
+            f"Разведка системы {target_galaxy}:{target_system} обнаружила "
+            "перспективные ресурсные зоны."
+        )
+    else:
+        description = (
+            f"Разведка системы {target_galaxy}:{target_system} завершена. "
+            "Получены базовые навигационные данные."
+        )
+
+    return {
+        "target_galaxy": target_galaxy,
+        "target_system": target_system,
+        "richness": richness,
+        "danger": danger,
+        "danger_level": danger_level,
+        "discovered_signals": discovered_signals,
+        "description": description,
+    }

@@ -1,9 +1,21 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.galaxy.schemas import GalaxySectorResponse
-from app.galaxy.service import get_galaxy_sector
+from app.galaxy.schemas import (
+    GalaxyScoutStateResponse,
+    GalaxySectorResponse,
+    StartGalaxyScoutRequest,
+)
+from app.galaxy.service import (
+    GalaxyScoutInvalidTargetError,
+    GalaxyScoutMissionBusyError,
+    GalaxyScoutTargetTooFarError,
+    NotEnoughScoutsError,
+    get_galaxy_scout_state,
+    get_galaxy_sector,
+    start_galaxy_scout_mission,
+)
 
 
 router = APIRouter(
@@ -25,4 +37,61 @@ def read_galaxy_sector(
         db=db,
         telegram_id=telegram_id,
         radius=radius,
+    )
+
+
+@router.get(
+    "/scout/current",
+    response_model=GalaxyScoutStateResponse,
+)
+def read_galaxy_scout_state(
+    telegram_id: int = 1,
+    db: Session = Depends(get_db),
+) -> GalaxyScoutStateResponse:
+    return get_galaxy_scout_state(
+        db=db,
+        telegram_id=telegram_id,
+    )
+
+
+@router.post(
+    "/scout/start",
+    response_model=GalaxyScoutStateResponse,
+)
+def create_galaxy_scout_mission(
+    payload: StartGalaxyScoutRequest,
+    telegram_id: int = 1,
+    db: Session = Depends(get_db),
+) -> GalaxyScoutStateResponse:
+    try:
+        start_galaxy_scout_mission(
+            db=db,
+            telegram_id=telegram_id,
+            target_galaxy=payload.target_galaxy,
+            target_system=payload.target_system,
+        )
+    except GalaxyScoutMissionBusyError:
+        raise HTTPException(
+            status_code=409,
+            detail="Разведка уже выполняется.",
+        )
+    except GalaxyScoutTargetTooFarError:
+        raise HTTPException(
+            status_code=400,
+            detail="Система слишком далеко для разведки.",
+        )
+    except GalaxyScoutInvalidTargetError:
+        raise HTTPException(
+            status_code=400,
+            detail="Недопустимая цель разведки.",
+        )
+    except NotEnoughScoutsError:
+        raise HTTPException(
+            status_code=400,
+            detail="Для разведки нужен хотя бы один разведчик.",
+        )
+
+    return get_galaxy_scout_state(
+        db=db,
+        telegram_id=telegram_id,
     )

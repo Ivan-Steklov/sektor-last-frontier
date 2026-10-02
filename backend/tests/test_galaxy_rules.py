@@ -1,5 +1,8 @@
 from app.galaxy.rules import (
+    build_scout_report,
     normalize_sector_radius,
+    scout_discovered_signals,
+    scout_duration_seconds,
     sector_system_numbers,
     system_danger_label,
     system_danger_level,
@@ -50,3 +53,30 @@ def test_system_danger_level_and_label() -> None:
         "средняя",
         "высокая",
     }
+
+
+def test_scout_duration_depends_on_distance() -> None:
+    assert scout_duration_seconds(1) == 60
+    assert scout_duration_seconds(2) == 75
+    assert scout_duration_seconds(20) == 180
+
+
+def test_scout_discovered_signals_range() -> None:
+    for system in range(1, 20):
+        signals = scout_discovered_signals(galaxy=1, system=system)
+        assert signals in {1, 2, 3, 4}
+
+
+def test_build_scout_report_shape() -> None:
+    report = build_scout_report(
+        target_galaxy=1,
+        target_system=3,
+    )
+
+    assert report["target_galaxy"] == 1
+    assert report["target_system"] == 3
+    assert report["richness"] in {"бедная", "обычная", "богатая"}
+    assert report["danger"] in {"низкая", "средняя", "высокая"}
+    assert report["danger_level"] in {1, 2, 3}
+    assert report["discovered_signals"] in {1, 2, 3, 4}
+    assert report["description"] != ""
