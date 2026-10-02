@@ -7,17 +7,16 @@ from app.galaxy.models import GalaxyScoutMission
 from app.galaxy.repository import (
     add_scout_mission,
     get_active_scout_mission_by_planet_id,
+    get_known_systems_by_planet_id,
     get_last_completed_scout_mission_by_planet_id,
+    upsert_known_system,
 )
 from app.galaxy.rules import (
     MAX_SCOUT_DISTANCE,
     build_scout_report,
     scout_duration_seconds,
     sector_system_numbers,
-    system_danger_label,
-    system_danger_level,
     system_display_name,
-    system_richness,
 )
 from app.galaxy.schemas import (
     GalaxyPlanetMarker,
@@ -58,6 +57,20 @@ def get_galaxy_sector(
         telegram_id=telegram_id,
     )
 
+    apply_completed_scout_mission(
+        db=db,
+        planet_id=home_planet.id,
+    )
+
+    known_systems = get_known_systems_by_planet_id(
+        db=db,
+        planet_id=home_planet.id,
+    )
+    known_systems_by_coordinates = {
+        (known_system.target_galaxy, known_system.target_system): known_system
+        for known_system in known_systems
+    }
+
     systems: list[GalaxySystemItem] = []
 
     for system_number in sector_system_numbers(
@@ -65,10 +78,24 @@ def get_galaxy_sector(
         radius=radius,
     ):
         is_home_system = system_number == home_planet.system
-        danger_level = system_danger_level(
-            galaxy=home_planet.galaxy,
-            system=system_number,
+
+        known_system = known_systems_by_coordinates.get(
+            (home_planet.galaxy, system_number)
         )
+        scout_report = _known_system_to_report_response(known_system)
+
+        richness = "Неизвестно"
+        danger = "Неизвестно"
+        danger_level = 0
+
+        if is_home_system:
+            richness = "Домашняя система"
+            danger = "Безопасно"
+            danger_level = 0
+        elif scout_report is not None:
+            richness = scout_report.richness
+            danger = scout_report.danger
+            danger_level = scout_report.danger_level
 
         planets: list[GalaxyPlanetMarker] = []
 
@@ -91,13 +118,12 @@ def get_galaxy_sector(
                     system=system_number,
                 ),
                 distance=abs(system_number - home_planet.system),
-                richness=system_richness(
-                    galaxy=home_planet.galaxy,
-                    system=system_number,
-                ),
-                danger=system_danger_label(danger_level),
+                richness=richness,
+                danger=danger,
                 danger_level=danger_level,
                 has_home_planet=is_home_system,
+                is_scouted=known_system is not None,
+                scout_report=scout_report,
                 planets=planets,
             )
         )
@@ -258,11 +284,22 @@ def apply_completed_scout_mission(
     if scout_state is not None:
         scout_state.quantity += 1
 
-    active_mission.status = "completed"
-    active_mission.completed_at = now
-    active_mission.result_payload = build_scout_report(
+    report_payload = build_scout_report(
         target_galaxy=active_mission.target_galaxy,
         target_system=active_mission.target_system,
+    )
+
+    active_mission.status = "completed"
+    active_mission.completed_at = now
+    active_mission.result_payload = report_payload
+
+    upsert_known_system(
+        db=db,
+        planet_id=planet_id,
+        target_galaxy=active_mission.target_galaxy,
+        target_system=active_mission.target_system,
+        report_payload=report_payload,
+        discovered_at=now,
     )
 
     db.commit()
@@ -287,6 +324,18 @@ def _to_scout_mission_response(
             0,
             int((finishes_at - now).total_seconds()),
         ),
+    )
+
+
+def _known_system_to_report_response(
+    known_system,
+) -> GalaxyScoutReportResponse | None:
+    if known_system is None:
+        return None
+
+    return GalaxyScoutReportResponse(
+        **known_system.report_payload,
+        completed_at=known_system.updated_at,
     )
 
 

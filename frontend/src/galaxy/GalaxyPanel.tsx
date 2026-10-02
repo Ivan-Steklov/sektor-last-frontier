@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { API_URL, TELEGRAM_ID } from "../app/constants";
 import "./GalaxyPanel.css";
@@ -10,6 +10,17 @@ type GalaxyPlanetMarker = {
   is_home_planet: boolean;
 };
 
+type GalaxyScoutReport = {
+  target_galaxy: number;
+  target_system: number;
+  richness: string;
+  danger: string;
+  danger_level: number;
+  discovered_signals: number;
+  description: string;
+  completed_at: string;
+};
+
 type GalaxySystemItem = {
   galaxy: number;
   system: number;
@@ -19,6 +30,8 @@ type GalaxySystemItem = {
   danger: string;
   danger_level: number;
   has_home_planet: boolean;
+  is_scouted: boolean;
+  scout_report: GalaxyScoutReport | null;
   planets: GalaxyPlanetMarker[];
 };
 
@@ -38,16 +51,7 @@ type GalaxyScoutStateResponse = {
     finishes_at: string;
     remaining_seconds: number;
   } | null;
-  last_report: {
-    target_galaxy: number;
-    target_system: number;
-    richness: string;
-    danger: string;
-    danger_level: number;
-    discovered_signals: number;
-    description: string;
-    completed_at: string;
-  } | null;
+  last_report: GalaxyScoutReport | null;
 };
 
 export function GalaxyPanel() {
@@ -60,34 +64,53 @@ export function GalaxyPanel() {
   const [isLoading, setIsLoading] = useState(false);
   const [isStartingScout, setIsStartingScout] = useState(false);
 
-  async function loadGalaxyData() {
-    setIsLoading(true);
+  const isTimerRefreshInProgressRef = useRef(false);
+
+  async function loadGalaxyData(options?: { silent?: boolean }) {
+    if (!options?.silent) {
+      setIsLoading(true);
+    }
+
     setError("");
 
     try {
-      const [sectorResponse, scoutResponse] = await Promise.all([
-        fetch(`${API_URL}/api/galaxy/sector?telegram_id=${TELEGRAM_ID}`),
-        fetch(`${API_URL}/api/galaxy/scout/current?telegram_id=${TELEGRAM_ID}`),
-      ]);
+      const scoutResponse = await fetch(
+        `${API_URL}/api/galaxy/scout/current?telegram_id=${TELEGRAM_ID}`,
+      );
 
-      if (!sectorResponse.ok || !scoutResponse.ok) {
-        throw new Error("Не удалось загрузить карту галактики");
+      if (!scoutResponse.ok) {
+        throw new Error("Не удалось обновить состояние разведки.");
+      }
+
+      const scoutData: GalaxyScoutStateResponse = await scoutResponse.json();
+
+      const sectorResponse = await fetch(
+        `${API_URL}/api/galaxy/sector?telegram_id=${TELEGRAM_ID}`,
+      );
+
+      if (!sectorResponse.ok) {
+        throw new Error("Не удалось загрузить карту галактики.");
       }
 
       const sectorData: GalaxySectorResponse = await sectorResponse.json();
-      const scoutData: GalaxyScoutStateResponse = await scoutResponse.json();
 
-      setSector(sectorData);
       setScoutState(scoutData);
+      setSector(sectorData);
       setRemainingSeconds(scoutData.active_mission?.remaining_seconds ?? 0);
     } catch (caughtError) {
-      setError(
+      const message =
         caughtError instanceof Error
           ? caughtError.message
-          : "Не удалось загрузить карту галактики",
+          : "Не удалось загрузить карту галактики.";
+
+      setError(
+        message === "Failed to fetch"
+          ? "Не удалось связаться с backend. Проверь, что сервер запущен."
+          : message,
       );
     } finally {
       setIsLoading(false);
+      isTimerRefreshInProgressRef.current = false;
     }
   }
 
@@ -97,13 +120,21 @@ export function GalaxyPanel() {
 
   useEffect(() => {
     if (!scoutState?.active_mission) {
+      isTimerRefreshInProgressRef.current = false;
       return;
     }
 
     const timerId = window.setInterval(() => {
       setRemainingSeconds((current) => {
         if (current <= 1) {
-          void loadGalaxyData();
+          if (!isTimerRefreshInProgressRef.current) {
+            isTimerRefreshInProgressRef.current = true;
+
+            window.setTimeout(() => {
+              void loadGalaxyData({ silent: true });
+            }, 350);
+          }
+
           return 0;
         }
 
@@ -144,20 +175,33 @@ export function GalaxyPanel() {
       setScoutState(scoutData);
       setRemainingSeconds(scoutData.active_mission?.remaining_seconds ?? 0);
 
-      await loadGalaxyData();
+      await loadGalaxyData({ silent: true });
     } catch (caughtError) {
-      setError(
+      const message =
         caughtError instanceof Error
           ? caughtError.message
-          : "Не удалось начать разведку.",
+          : "Не удалось начать разведку.";
+
+      setError(
+        message === "Failed to fetch"
+          ? "Не удалось связаться с backend. Проверь, что сервер запущен."
+          : message,
       );
     } finally {
       setIsStartingScout(false);
     }
   }
 
-  const hasActiveScout = scoutState?.active_mission !== null
-    && scoutState?.active_mission !== undefined;
+  const hasActiveScout =
+    scoutState?.active_mission !== null &&
+    scoutState?.active_mission !== undefined;
+
+  const explorableSystems =
+    sector?.systems.filter((system) => !system.has_home_planet) ?? [];
+
+  const scoutedCount = explorableSystems.filter(
+    (system) => system.is_scouted,
+  ).length;
 
   return (
     <section className="galaxy-section">
@@ -166,8 +210,8 @@ export function GalaxyPanel() {
           <p className="galaxy-label">Галактика</p>
           <h2>Карта ближайшего сектора</h2>
           <p className="galaxy-description">
-            Это первый обзор окружающих систем. Отсюда можно отправить
-            разведчика и получить отчёт по соседним системам.
+            Неизвестные системы скрывают ресурсы и опасность до разведки.
+            Домашняя система не входит в счётчик разведки.
           </p>
         </div>
 
@@ -187,11 +231,12 @@ export function GalaxyPanel() {
       {sector && (
         <div className="galaxy-current">
           <strong>
-            Текущие координаты: {sector.current_galaxy}:
-            {sector.current_system}:{sector.current_position}
+            Текущие координаты: {sector.current_galaxy}:{sector.current_system}:
+            {sector.current_position}
           </strong>
           <span>
-            Домашняя планета отмечена в системе {sector.current_system}.
+            Разведано систем в секторе: {scoutedCount} из{" "}
+            {explorableSystems.length}.
           </span>
         </div>
       )}
@@ -257,14 +302,16 @@ function GalaxySystemCard({
 }: GalaxySystemCardProps) {
   const canScout = !isCurrentSystem && !isScoutBlocked;
 
+  const cardClassName = [
+    "galaxy-system-card",
+    isCurrentSystem ? "galaxy-system-card-current" : "",
+    system.is_scouted ? "galaxy-system-card-scouted" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <article
-      className={
-        isCurrentSystem
-          ? "galaxy-system-card galaxy-system-card-current"
-          : "galaxy-system-card"
-      }
-    >
+    <article className={cardClassName}>
       <div className="galaxy-system-header">
         <div>
           <p className="galaxy-system-code">
@@ -273,12 +320,43 @@ function GalaxySystemCard({
           <h3>{system.name}</h3>
         </div>
 
-        <DangerBadge dangerLevel={system.danger_level} danger={system.danger} />
+        <div className="galaxy-card-badges">
+          {isCurrentSystem && <span className="galaxy-scouted-badge">Дом</span>}
+
+          {!isCurrentSystem && system.is_scouted && (
+            <span className="galaxy-scouted-badge">Разведано</span>
+          )}
+
+          {!isCurrentSystem && !system.is_scouted && (
+            <span className="galaxy-danger galaxy-danger-medium">
+              Не разведано
+            </span>
+          )}
+
+          {!isCurrentSystem && system.is_scouted && (
+            <DangerBadge
+              dangerLevel={system.danger_level}
+              danger={system.danger}
+            />
+          )}
+        </div>
       </div>
 
       <div className="galaxy-system-stats">
         <span>Дистанция: {system.distance}</span>
-        <span>Ресурсы: {system.richness}</span>
+
+        {isCurrentSystem && <span>Домашняя система</span>}
+
+        {!isCurrentSystem && !system.is_scouted && (
+          <>
+            <span>Ресурсы: неизвестно</span>
+            <span>Опасность: неизвестно</span>
+          </>
+        )}
+
+        {!isCurrentSystem && system.is_scouted && (
+          <span>Данные разведки получены</span>
+        )}
       </div>
 
       {system.planets.length > 0 ? (
@@ -302,8 +380,22 @@ function GalaxySystemCard({
         <p className="galaxy-empty-system">Нет известных планет.</p>
       )}
 
+      {system.scout_report && (
+        <div className="galaxy-card-report">
+          <strong>Отчёт разведки</strong>
+          <p>{system.scout_report.description}</p>
+          <div className="galaxy-card-report-grid">
+            <span>Ресурсы: {system.scout_report.richness}</span>
+            <span>Опасность: {system.scout_report.danger}</span>
+            <span>Сигналы: {system.scout_report.discovered_signals}</span>
+          </div>
+        </div>
+      )}
+
       {isCurrentSystem && (
-        <p className="galaxy-action-hint">Это домашняя система.</p>
+        <p className="galaxy-action-hint">
+          Это домашняя система. Разведка не требуется.
+        </p>
       )}
 
       {!isCurrentSystem && isScoutBlocked && (
@@ -317,7 +409,7 @@ function GalaxySystemCard({
           void onScout(system);
         }}
       >
-        Разведать
+        {system.is_scouted ? "Разведать снова" : "Разведать"}
       </button>
     </article>
   );

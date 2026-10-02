@@ -10,25 +10,6 @@ class GalaxyPlanetMarker(BaseModel):
     is_home_planet: bool
 
 
-class GalaxySystemItem(BaseModel):
-    galaxy: int
-    system: int
-    name: str
-    distance: int
-    richness: str
-    danger: str
-    danger_level: int
-    has_home_planet: bool
-    planets: list[GalaxyPlanetMarker]
-
-
-class GalaxySectorResponse(BaseModel):
-    current_galaxy: int
-    current_system: int
-    current_position: int
-    systems: list[GalaxySystemItem]
-
-
 class StartGalaxyScoutRequest(BaseModel):
     target_galaxy: int = Field(ge=1)
     target_system: int = Field(ge=1)
@@ -52,6 +33,27 @@ class GalaxyScoutReportResponse(BaseModel):
     discovered_signals: int
     description: str
     completed_at: datetime
+
+
+class GalaxySystemItem(BaseModel):
+    galaxy: int
+    system: int
+    name: str
+    distance: int
+    richness: str
+    danger: str
+    danger_level: int
+    has_home_planet: bool
+    is_scouted: bool
+    scout_report: GalaxyScoutReportResponse | None
+    planets: list[GalaxyPlanetMarker]
+
+
+class GalaxySectorResponse(BaseModel):
+    current_galaxy: int
+    current_system: int
+    current_position: int
+    systems: list[GalaxySystemItem]
 
 
 class GalaxyScoutStateResponse(BaseModel):

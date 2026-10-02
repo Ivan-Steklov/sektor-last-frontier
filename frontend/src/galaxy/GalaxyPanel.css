@@ -113,6 +113,11 @@
   box-shadow: 0 0 0 1px rgba(91, 140, 255, 0.22) inset;
 }
 
+.galaxy-system-card-scouted {
+  border-color: #2d6f44;
+  box-shadow: 0 0 0 1px rgba(126, 231, 135, 0.12) inset;
+}
+
 .galaxy-system-header {
   display: flex;
   justify-content: space-between;
@@ -130,6 +135,24 @@
 
 .galaxy-system-header h3 {
   margin: 4px 0 0;
+}
+
+.galaxy-card-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.galaxy-scouted-badge {
+  width: fit-content;
+  white-space: nowrap;
+  padding: 5px 9px;
+  border: 1px solid #2d6f44;
+  border-radius: 999px;
+  background: #102018;
+  color: #7ee787;
+  font-size: 12px;
 }
 
 .galaxy-danger {
@@ -190,6 +213,30 @@
   color: #7d8da3;
 }
 
+.galaxy-card-report {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #2d6f44;
+  border-radius: 12px;
+  background: rgba(16, 32, 24, 0.55);
+}
+
+.galaxy-card-report p {
+  margin: 0;
+  color: #b7c5d8;
+  line-height: 1.5;
+}
+
+.galaxy-card-report-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #9eb0c6;
+  font-size: 13px;
+}
+
 .galaxy-action-hint {
   margin: 0;
   color: #7d8da3;
@@ -218,6 +265,14 @@
   }
 
   .galaxy-heading {
+    flex-direction: column;
+  }
+
+  .galaxy-card-badges {
+    align-items: flex-start;
+  }
+
+  .galaxy-system-header {
     flex-direction: column;
   }
 }
