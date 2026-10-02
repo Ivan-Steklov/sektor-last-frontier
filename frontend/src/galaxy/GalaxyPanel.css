@@ -54,7 +54,9 @@
 
 .galaxy-current,
 .galaxy-scout-active,
-.galaxy-scout-report {
+.galaxy-resource-active,
+.galaxy-scout-report,
+.galaxy-resource-result {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -66,7 +68,8 @@
 }
 
 .galaxy-current span,
-.galaxy-scout-active span {
+.galaxy-scout-active span,
+.galaxy-resource-active span {
   color: #9eb0c6;
 }
 
@@ -74,11 +77,20 @@
   border-color: #5b8cff;
 }
 
+.galaxy-resource-active {
+  border-color: #d59b3d;
+}
+
 .galaxy-scout-report {
   border-color: #2d6f44;
 }
 
-.galaxy-scout-report p {
+.galaxy-resource-result {
+  border-color: #d59b3d;
+}
+
+.galaxy-scout-report p,
+.galaxy-resource-result p {
   margin: 0;
   color: #b7c5d8;
   line-height: 1.6;
@@ -243,6 +255,11 @@
   font-size: 14px;
 }
 
+.galaxy-actions {
+  display: grid;
+  gap: 10px;
+}
+
 .galaxy-action-button {
   min-height: 40px;
   border: 1px solid #49698f;
@@ -250,6 +267,11 @@
   background: #203246;
   color: #f4f8ff;
   cursor: pointer;
+}
+
+.galaxy-transport-button {
+  border-color: #8b6a2d;
+  background: #332613;
 }
 
 .galaxy-action-button:disabled {

@@ -3,17 +3,25 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.galaxy.schemas import (
+    GalaxyResourceMissionStateResponse,
     GalaxyScoutStateResponse,
     GalaxySectorResponse,
+    StartGalaxyResourceMissionRequest,
     StartGalaxyScoutRequest,
 )
 from app.galaxy.service import (
+    GalaxyResourceMissionBusyError,
+    GalaxyResourceMissionInvalidTargetError,
+    GalaxyResourceMissionTargetNotScoutedError,
     GalaxyScoutInvalidTargetError,
     GalaxyScoutMissionBusyError,
     GalaxyScoutTargetTooFarError,
     NotEnoughScoutsError,
+    NotEnoughTransportsError,
+    get_galaxy_resource_mission_state,
     get_galaxy_scout_state,
     get_galaxy_sector,
+    start_galaxy_resource_mission,
     start_galaxy_scout_mission,
 )
 
@@ -92,6 +100,63 @@ def create_galaxy_scout_mission(
         )
 
     return get_galaxy_scout_state(
+        db=db,
+        telegram_id=telegram_id,
+    )
+
+
+@router.get(
+    "/resource-mission/current",
+    response_model=GalaxyResourceMissionStateResponse,
+)
+def read_galaxy_resource_mission_state(
+    telegram_id: int = 1,
+    db: Session = Depends(get_db),
+) -> GalaxyResourceMissionStateResponse:
+    return get_galaxy_resource_mission_state(
+        db=db,
+        telegram_id=telegram_id,
+    )
+
+
+@router.post(
+    "/resource-mission/start",
+    response_model=GalaxyResourceMissionStateResponse,
+)
+def create_galaxy_resource_mission(
+    payload: StartGalaxyResourceMissionRequest,
+    telegram_id: int = 1,
+    db: Session = Depends(get_db),
+) -> GalaxyResourceMissionStateResponse:
+    try:
+        start_galaxy_resource_mission(
+            db=db,
+            telegram_id=telegram_id,
+            target_galaxy=payload.target_galaxy,
+            target_system=payload.target_system,
+        )
+    except GalaxyResourceMissionBusyError:
+        raise HTTPException(
+            status_code=409,
+            detail="Добывающая миссия уже выполняется.",
+        )
+    except GalaxyResourceMissionTargetNotScoutedError:
+        raise HTTPException(
+            status_code=400,
+            detail="Сначала нужно разведать систему.",
+        )
+    except GalaxyResourceMissionInvalidTargetError:
+        raise HTTPException(
+            status_code=400,
+            detail="Недопустимая цель добывающей миссии.",
+        )
+    except NotEnoughTransportsError:
+        raise HTTPException(
+            status_code=400,
+            detail="Для добывающей миссии нужен транспорт.",
+        )
+
+    return get_galaxy_resource_mission_state(
         db=db,
         telegram_id=telegram_id,
     )

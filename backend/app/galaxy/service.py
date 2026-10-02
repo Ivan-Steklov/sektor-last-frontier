@@ -3,11 +3,15 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.galaxy.models import GalaxyScoutMission
+from app.galaxy.models import GalaxyResourceMission, GalaxyScoutMission
 from app.galaxy.repository import (
+    add_resource_mission,
     add_scout_mission,
+    get_active_resource_mission_by_planet_id,
     get_active_scout_mission_by_planet_id,
+    get_known_system,
     get_known_systems_by_planet_id,
+    get_last_completed_resource_mission_by_planet_id,
     get_last_completed_scout_mission_by_planet_id,
     upsert_known_system,
 )
@@ -20,6 +24,9 @@ from app.galaxy.rules import (
 )
 from app.galaxy.schemas import (
     GalaxyPlanetMarker,
+    GalaxyResourceMissionResponse,
+    GalaxyResourceMissionResultResponse,
+    GalaxyResourceMissionStateResponse,
     GalaxyScoutMissionResponse,
     GalaxyScoutReportResponse,
     GalaxyScoutStateResponse,
@@ -27,6 +34,7 @@ from app.galaxy.schemas import (
     GalaxySystemItem,
 )
 from app.planets.service import get_or_create_home_planet
+from app.resources.service import calculate_current_resource_values, sync_resources
 from app.ships.repository import get_by_planet_and_code
 from app.ships.service import ensure_ships
 
@@ -47,6 +55,22 @@ class NotEnoughScoutsError(Exception):
     pass
 
 
+class GalaxyResourceMissionBusyError(Exception):
+    pass
+
+
+class GalaxyResourceMissionInvalidTargetError(Exception):
+    pass
+
+
+class GalaxyResourceMissionTargetNotScoutedError(Exception):
+    pass
+
+
+class NotEnoughTransportsError(Exception):
+    pass
+
+
 def get_galaxy_sector(
     db: Session,
     telegram_id: int,
@@ -58,6 +82,10 @@ def get_galaxy_sector(
     )
 
     apply_completed_scout_mission(
+        db=db,
+        planet_id=home_planet.id,
+    )
+    apply_completed_resource_mission(
         db=db,
         planet_id=home_planet.id,
     )
@@ -176,6 +204,46 @@ def get_galaxy_scout_state(
     )
 
 
+def get_galaxy_resource_mission_state(
+    db: Session,
+    telegram_id: int,
+) -> GalaxyResourceMissionStateResponse:
+    home_planet = get_or_create_home_planet(
+        db=db,
+        telegram_id=telegram_id,
+    )
+
+    apply_completed_resource_mission(
+        db=db,
+        planet_id=home_planet.id,
+    )
+
+    active_mission = get_active_resource_mission_by_planet_id(
+        db=db,
+        planet_id=home_planet.id,
+    )
+    last_completed = get_last_completed_resource_mission_by_planet_id(
+        db=db,
+        planet_id=home_planet.id,
+    )
+
+    last_result = None
+    if (
+        last_completed is not None
+        and last_completed.result_payload is not None
+        and last_completed.completed_at is not None
+    ):
+        last_result = GalaxyResourceMissionResultResponse(
+            **last_completed.result_payload,
+            completed_at=last_completed.completed_at,
+        )
+
+    return GalaxyResourceMissionStateResponse(
+        active_mission=_to_resource_mission_response(active_mission),
+        last_result=last_result,
+    )
+
+
 def start_galaxy_scout_mission(
     db: Session,
     telegram_id: int,
@@ -252,6 +320,95 @@ def start_galaxy_scout_mission(
         raise GalaxyScoutMissionBusyError
 
 
+def start_galaxy_resource_mission(
+    db: Session,
+    telegram_id: int,
+    target_galaxy: int,
+    target_system: int,
+) -> None:
+    home_planet = get_or_create_home_planet(
+        db=db,
+        telegram_id=telegram_id,
+    )
+
+    apply_completed_scout_mission(
+        db=db,
+        planet_id=home_planet.id,
+    )
+    apply_completed_resource_mission(
+        db=db,
+        planet_id=home_planet.id,
+    )
+    ensure_ships(
+        db=db,
+        planet_id=home_planet.id,
+    )
+
+    active_mission = get_active_resource_mission_by_planet_id(
+        db=db,
+        planet_id=home_planet.id,
+    )
+    if active_mission is not None:
+        raise GalaxyResourceMissionBusyError
+
+    if target_galaxy != home_planet.galaxy:
+        raise GalaxyResourceMissionInvalidTargetError
+
+    if target_system == home_planet.system:
+        raise GalaxyResourceMissionInvalidTargetError
+
+    distance = abs(target_system - home_planet.system)
+
+    if distance > MAX_SCOUT_DISTANCE:
+        raise GalaxyResourceMissionInvalidTargetError
+
+    known_system = get_known_system(
+        db=db,
+        planet_id=home_planet.id,
+        target_galaxy=target_galaxy,
+        target_system=target_system,
+    )
+    if known_system is None:
+        raise GalaxyResourceMissionTargetNotScoutedError
+
+    transport_state = get_by_planet_and_code(
+        db=db,
+        planet_id=home_planet.id,
+        ship_code="transport",
+    )
+    transport_quantity = transport_state.quantity if transport_state else 0
+
+    if transport_quantity < 1:
+        raise NotEnoughTransportsError
+
+    if transport_state is None:
+        raise NotEnoughTransportsError
+
+    transport_state.quantity -= 1
+
+    now = datetime.now(timezone.utc)
+    duration = _resource_mission_duration_seconds(distance)
+
+    try:
+        add_resource_mission(
+            db=db,
+            mission=GalaxyResourceMission(
+                planet_id=home_planet.id,
+                status="active",
+                target_galaxy=target_galaxy,
+                target_system=target_system,
+                started_at=now,
+                finishes_at=now + timedelta(seconds=duration),
+                completed_at=None,
+                result_payload=None,
+            ),
+        )
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise GalaxyResourceMissionBusyError
+
+
 def apply_completed_scout_mission(
     db: Session,
     planet_id: int,
@@ -305,6 +462,83 @@ def apply_completed_scout_mission(
     db.commit()
 
 
+def apply_completed_resource_mission(
+    db: Session,
+    planet_id: int,
+) -> None:
+    active_mission = get_active_resource_mission_by_planet_id(
+        db=db,
+        planet_id=planet_id,
+    )
+
+    if active_mission is None:
+        return
+
+    now = datetime.now(timezone.utc)
+    finishes_at = _as_utc(active_mission.finishes_at)
+
+    if finishes_at > now:
+        return
+
+    ensure_ships(
+        db=db,
+        planet_id=planet_id,
+    )
+
+    transport_state = get_by_planet_and_code(
+        db=db,
+        planet_id=planet_id,
+        ship_code="transport",
+    )
+
+    if transport_state is not None:
+        transport_state.quantity += 1
+
+    known_system = get_known_system(
+        db=db,
+        planet_id=planet_id,
+        target_galaxy=active_mission.target_galaxy,
+        target_system=active_mission.target_system,
+    )
+
+    report_payload = known_system.report_payload if known_system is not None else {}
+
+    result_payload = _build_resource_mission_result(
+        target_galaxy=active_mission.target_galaxy,
+        target_system=active_mission.target_system,
+        scout_report=report_payload,
+    )
+
+    resource_state = sync_resources(
+        db=db,
+        planet_id=planet_id,
+        calculated_at=now,
+    )
+    current_values = calculate_current_resource_values(
+        db=db,
+        planet_id=planet_id,
+        state=resource_state,
+        calculated_at=now,
+    )
+
+    capacity = current_values["warehouse_capacity"]
+
+    resource_state.metal = min(
+        capacity,
+        resource_state.metal + result_payload["metal_found"],
+    )
+    resource_state.crystal = min(
+        capacity,
+        resource_state.crystal + result_payload["crystal_found"],
+    )
+
+    active_mission.status = "completed"
+    active_mission.completed_at = now
+    active_mission.result_payload = result_payload
+
+    db.commit()
+
+
 def _to_scout_mission_response(
     mission: GalaxyScoutMission | None,
 ) -> GalaxyScoutMissionResponse | None:
@@ -327,6 +561,28 @@ def _to_scout_mission_response(
     )
 
 
+def _to_resource_mission_response(
+    mission: GalaxyResourceMission | None,
+) -> GalaxyResourceMissionResponse | None:
+    if mission is None:
+        return None
+
+    now = datetime.now(timezone.utc)
+    finishes_at = _as_utc(mission.finishes_at)
+
+    return GalaxyResourceMissionResponse(
+        id=mission.id,
+        target_galaxy=mission.target_galaxy,
+        target_system=mission.target_system,
+        started_at=mission.started_at,
+        finishes_at=mission.finishes_at,
+        remaining_seconds=max(
+            0,
+            int((finishes_at - now).total_seconds()),
+        ),
+    )
+
+
 def _known_system_to_report_response(
     known_system,
 ) -> GalaxyScoutReportResponse | None:
@@ -337,6 +593,43 @@ def _known_system_to_report_response(
         **known_system.report_payload,
         completed_at=known_system.updated_at,
     )
+
+
+def _resource_mission_duration_seconds(distance: int) -> int:
+    return 60 + distance * 30
+
+
+def _build_resource_mission_result(
+    target_galaxy: int,
+    target_system: int,
+    scout_report: dict,
+) -> dict:
+    richness = str(scout_report.get("richness", "обычная")).lower()
+    discovered_signals = int(scout_report.get("discovered_signals", 0))
+
+    if "богат" in richness:
+        metal_found = 360
+        crystal_found = 140
+    elif "бедн" in richness or "скуд" in richness:
+        metal_found = 120
+        crystal_found = 40
+    else:
+        metal_found = 220
+        crystal_found = 80
+
+    metal_found += discovered_signals * 35
+    crystal_found += discovered_signals * 15
+
+    return {
+        "target_galaxy": target_galaxy,
+        "target_system": target_system,
+        "metal_found": metal_found,
+        "crystal_found": crystal_found,
+        "description": (
+            f"Транспорт вернулся из системы {target_galaxy}:{target_system}. "
+            f"Добыто: металл {metal_found}, кристалл {crystal_found}."
+        ),
+    }
 
 
 def _as_utc(value):

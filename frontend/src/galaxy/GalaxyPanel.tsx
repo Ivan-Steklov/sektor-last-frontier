@@ -21,6 +21,15 @@ type GalaxyScoutReport = {
   completed_at: string;
 };
 
+type GalaxyResourceMissionResult = {
+  target_galaxy: number;
+  target_system: number;
+  metal_found: number;
+  crystal_found: number;
+  description: string;
+  completed_at: string;
+};
+
 type GalaxySystemItem = {
   galaxy: number;
   system: number;
@@ -54,17 +63,37 @@ type GalaxyScoutStateResponse = {
   last_report: GalaxyScoutReport | null;
 };
 
+type GalaxyResourceMissionStateResponse = {
+  active_mission: {
+    id: number;
+    target_galaxy: number;
+    target_system: number;
+    started_at: string;
+    finishes_at: string;
+    remaining_seconds: number;
+  } | null;
+  last_result: GalaxyResourceMissionResult | null;
+};
+
 export function GalaxyPanel() {
   const [sector, setSector] = useState<GalaxySectorResponse | null>(null);
   const [scoutState, setScoutState] = useState<GalaxyScoutStateResponse | null>(
     null,
   );
-  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [resourceMissionState, setResourceMissionState] =
+    useState<GalaxyResourceMissionStateResponse | null>(null);
+
+  const [scoutRemainingSeconds, setScoutRemainingSeconds] = useState(0);
+  const [resourceRemainingSeconds, setResourceRemainingSeconds] = useState(0);
+
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isStartingScout, setIsStartingScout] = useState(false);
+  const [isStartingResourceMission, setIsStartingResourceMission] =
+    useState(false);
 
-  const isTimerRefreshInProgressRef = useRef(false);
+  const isScoutTimerRefreshInProgressRef = useRef(false);
+  const isResourceTimerRefreshInProgressRef = useRef(false);
 
   async function loadGalaxyData(options?: { silent?: boolean }) {
     if (!options?.silent) {
@@ -84,6 +113,17 @@ export function GalaxyPanel() {
 
       const scoutData: GalaxyScoutStateResponse = await scoutResponse.json();
 
+      const resourceMissionResponse = await fetch(
+        `${API_URL}/api/galaxy/resource-mission/current?telegram_id=${TELEGRAM_ID}`,
+      );
+
+      if (!resourceMissionResponse.ok) {
+        throw new Error("Не удалось обновить состояние добывающей миссии.");
+      }
+
+      const resourceMissionData: GalaxyResourceMissionStateResponse =
+        await resourceMissionResponse.json();
+
       const sectorResponse = await fetch(
         `${API_URL}/api/galaxy/sector?telegram_id=${TELEGRAM_ID}`,
       );
@@ -95,8 +135,15 @@ export function GalaxyPanel() {
       const sectorData: GalaxySectorResponse = await sectorResponse.json();
 
       setScoutState(scoutData);
+      setResourceMissionState(resourceMissionData);
       setSector(sectorData);
-      setRemainingSeconds(scoutData.active_mission?.remaining_seconds ?? 0);
+
+      setScoutRemainingSeconds(
+        scoutData.active_mission?.remaining_seconds ?? 0,
+      );
+      setResourceRemainingSeconds(
+        resourceMissionData.active_mission?.remaining_seconds ?? 0,
+      );
     } catch (caughtError) {
       const message =
         caughtError instanceof Error
@@ -110,7 +157,8 @@ export function GalaxyPanel() {
       );
     } finally {
       setIsLoading(false);
-      isTimerRefreshInProgressRef.current = false;
+      isScoutTimerRefreshInProgressRef.current = false;
+      isResourceTimerRefreshInProgressRef.current = false;
     }
   }
 
@@ -120,15 +168,15 @@ export function GalaxyPanel() {
 
   useEffect(() => {
     if (!scoutState?.active_mission) {
-      isTimerRefreshInProgressRef.current = false;
+      isScoutTimerRefreshInProgressRef.current = false;
       return;
     }
 
     const timerId = window.setInterval(() => {
-      setRemainingSeconds((current) => {
+      setScoutRemainingSeconds((current) => {
         if (current <= 1) {
-          if (!isTimerRefreshInProgressRef.current) {
-            isTimerRefreshInProgressRef.current = true;
+          if (!isScoutTimerRefreshInProgressRef.current) {
+            isScoutTimerRefreshInProgressRef.current = true;
 
             window.setTimeout(() => {
               void loadGalaxyData({ silent: true });
@@ -144,6 +192,33 @@ export function GalaxyPanel() {
 
     return () => window.clearInterval(timerId);
   }, [scoutState?.active_mission?.id]);
+
+  useEffect(() => {
+    if (!resourceMissionState?.active_mission) {
+      isResourceTimerRefreshInProgressRef.current = false;
+      return;
+    }
+
+    const timerId = window.setInterval(() => {
+      setResourceRemainingSeconds((current) => {
+        if (current <= 1) {
+          if (!isResourceTimerRefreshInProgressRef.current) {
+            isResourceTimerRefreshInProgressRef.current = true;
+
+            window.setTimeout(() => {
+              void loadGalaxyData({ silent: true });
+            }, 350);
+          }
+
+          return 0;
+        }
+
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(timerId);
+  }, [resourceMissionState?.active_mission?.id]);
 
   async function startScoutMission(system: GalaxySystemItem) {
     setIsStartingScout(true);
@@ -173,7 +248,9 @@ export function GalaxyPanel() {
       const scoutData: GalaxyScoutStateResponse = await response.json();
 
       setScoutState(scoutData);
-      setRemainingSeconds(scoutData.active_mission?.remaining_seconds ?? 0);
+      setScoutRemainingSeconds(
+        scoutData.active_mission?.remaining_seconds ?? 0,
+      );
 
       await loadGalaxyData({ silent: true });
     } catch (caughtError) {
@@ -192,9 +269,65 @@ export function GalaxyPanel() {
     }
   }
 
+  async function startResourceMission(system: GalaxySystemItem) {
+    setIsStartingResourceMission(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/galaxy/resource-mission/start?telegram_id=${TELEGRAM_ID}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            target_galaxy: system.galaxy,
+            target_system: system.system,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+
+        throw new Error(
+          data?.detail ?? "Не удалось отправить добывающую миссию.",
+        );
+      }
+
+      const resourceMissionData: GalaxyResourceMissionStateResponse =
+        await response.json();
+
+      setResourceMissionState(resourceMissionData);
+      setResourceRemainingSeconds(
+        resourceMissionData.active_mission?.remaining_seconds ?? 0,
+      );
+
+      await loadGalaxyData({ silent: true });
+    } catch (caughtError) {
+      const message =
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Не удалось отправить добывающую миссию.";
+
+      setError(
+        message === "Failed to fetch"
+          ? "Не удалось связаться с backend. Проверь, что сервер запущен."
+          : message,
+      );
+    } finally {
+      setIsStartingResourceMission(false);
+    }
+  }
+
   const hasActiveScout =
     scoutState?.active_mission !== null &&
     scoutState?.active_mission !== undefined;
+
+  const hasActiveResourceMission =
+    resourceMissionState?.active_mission !== null &&
+    resourceMissionState?.active_mission !== undefined;
 
   const explorableSystems =
     sector?.systems.filter((system) => !system.has_home_planet) ?? [];
@@ -210,8 +343,7 @@ export function GalaxyPanel() {
           <p className="galaxy-label">Галактика</p>
           <h2>Карта ближайшего сектора</h2>
           <p className="galaxy-description">
-            Неизвестные системы скрывают ресурсы и опасность до разведки.
-            Домашняя система не входит в счётчик разведки.
+            Разведай систему, затем отправь транспорт за ресурсами.
           </p>
         </div>
 
@@ -231,8 +363,8 @@ export function GalaxyPanel() {
       {sector && (
         <div className="galaxy-current">
           <strong>
-            Текущие координаты: {sector.current_galaxy}:{sector.current_system}:
-            {sector.current_position}
+            Текущие координаты: {sector.current_galaxy}:
+            {sector.current_system}:{sector.current_position}
           </strong>
           <span>
             Разведано систем в секторе: {scoutedCount} из{" "}
@@ -247,14 +379,25 @@ export function GalaxyPanel() {
             Разведка системы {scoutState.active_mission.target_galaxy}:
             {scoutState.active_mission.target_system}
           </strong>
-          <span>Осталось: {formatDuration(remainingSeconds)}</span>
+          <span>Осталось: {formatDuration(scoutRemainingSeconds)}</span>
+        </div>
+      )}
+
+      {resourceMissionState?.active_mission && (
+        <div className="galaxy-resource-active">
+          <strong>
+            Добывающая миссия в системе{" "}
+            {resourceMissionState.active_mission.target_galaxy}:
+            {resourceMissionState.active_mission.target_system}
+          </strong>
+          <span>Осталось: {formatDuration(resourceRemainingSeconds)}</span>
         </div>
       )}
 
       {scoutState?.last_report && (
         <div className="galaxy-scout-report">
           <strong>
-            Последний отчёт: {scoutState.last_report.target_galaxy}:
+            Последний отчёт разведки: {scoutState.last_report.target_galaxy}:
             {scoutState.last_report.target_system}
           </strong>
           <p>{scoutState.last_report.description}</p>
@@ -262,6 +405,22 @@ export function GalaxyPanel() {
             <span>Ресурсы: {scoutState.last_report.richness}</span>
             <span>Опасность: {scoutState.last_report.danger}</span>
             <span>Сигналы: {scoutState.last_report.discovered_signals}</span>
+          </div>
+        </div>
+      )}
+
+      {resourceMissionState?.last_result && (
+        <div className="galaxy-resource-result">
+          <strong>
+            Последняя добыча: {resourceMissionState.last_result.target_galaxy}:
+            {resourceMissionState.last_result.target_system}
+          </strong>
+          <p>{resourceMissionState.last_result.description}</p>
+          <div className="galaxy-report-grid">
+            <span>Металл: {resourceMissionState.last_result.metal_found}</span>
+            <span>
+              Кристалл: {resourceMissionState.last_result.crystal_found}
+            </span>
           </div>
         </div>
       )}
@@ -278,7 +437,11 @@ export function GalaxyPanel() {
               system={system}
               isCurrentSystem={system.system === sector.current_system}
               isScoutBlocked={hasActiveScout || isStartingScout}
+              isResourceMissionBlocked={
+                hasActiveResourceMission || isStartingResourceMission
+              }
               onScout={startScoutMission}
+              onStartResourceMission={startResourceMission}
             />
           ))}
         </div>
@@ -291,16 +454,22 @@ type GalaxySystemCardProps = {
   system: GalaxySystemItem;
   isCurrentSystem: boolean;
   isScoutBlocked: boolean;
+  isResourceMissionBlocked: boolean;
   onScout: (system: GalaxySystemItem) => Promise<void>;
+  onStartResourceMission: (system: GalaxySystemItem) => Promise<void>;
 };
 
 function GalaxySystemCard({
   system,
   isCurrentSystem,
   isScoutBlocked,
+  isResourceMissionBlocked,
   onScout,
+  onStartResourceMission,
 }: GalaxySystemCardProps) {
   const canScout = !isCurrentSystem && !isScoutBlocked;
+  const canStartResourceMission =
+    !isCurrentSystem && system.is_scouted && !isResourceMissionBlocked;
 
   const cardClassName = [
     "galaxy-system-card",
@@ -321,7 +490,9 @@ function GalaxySystemCard({
         </div>
 
         <div className="galaxy-card-badges">
-          {isCurrentSystem && <span className="galaxy-scouted-badge">Дом</span>}
+          {isCurrentSystem && (
+            <span className="galaxy-scouted-badge">Дом</span>
+          )}
 
           {!isCurrentSystem && system.is_scouted && (
             <span className="galaxy-scouted-badge">Разведано</span>
@@ -402,15 +573,35 @@ function GalaxySystemCard({
         <p className="galaxy-action-hint">Другая разведка уже выполняется.</p>
       )}
 
-      <button
-        className="galaxy-action-button"
-        disabled={!canScout}
-        onClick={() => {
-          void onScout(system);
-        }}
-      >
-        {system.is_scouted ? "Разведать снова" : "Разведать"}
-      </button>
+      {!isCurrentSystem && isResourceMissionBlocked && (
+        <p className="galaxy-action-hint">
+          Другая добывающая миссия уже выполняется.
+        </p>
+      )}
+
+      <div className="galaxy-actions">
+        <button
+          className="galaxy-action-button"
+          disabled={!canScout}
+          onClick={() => {
+            void onScout(system);
+          }}
+        >
+          {system.is_scouted ? "Разведать снова" : "Разведать"}
+        </button>
+
+        {!isCurrentSystem && system.is_scouted && (
+          <button
+            className="galaxy-action-button galaxy-transport-button"
+            disabled={!canStartResourceMission}
+            onClick={() => {
+              void onStartResourceMission(system);
+            }}
+          >
+            Отправить транспорт
+          </button>
+        )}
+      </div>
     </article>
   );
 }

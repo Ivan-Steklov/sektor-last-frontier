@@ -15,7 +15,21 @@ class StartGalaxyScoutRequest(BaseModel):
     target_system: int = Field(ge=1)
 
 
+class StartGalaxyResourceMissionRequest(BaseModel):
+    target_galaxy: int = Field(ge=1)
+    target_system: int = Field(ge=1)
+
+
 class GalaxyScoutMissionResponse(BaseModel):
+    id: int
+    target_galaxy: int
+    target_system: int
+    started_at: datetime
+    finishes_at: datetime
+    remaining_seconds: int
+
+
+class GalaxyResourceMissionResponse(BaseModel):
     id: int
     target_galaxy: int
     target_system: int
@@ -31,6 +45,15 @@ class GalaxyScoutReportResponse(BaseModel):
     danger: str
     danger_level: int
     discovered_signals: int
+    description: str
+    completed_at: datetime
+
+
+class GalaxyResourceMissionResultResponse(BaseModel):
+    target_galaxy: int
+    target_system: int
+    metal_found: int
+    crystal_found: int
     description: str
     completed_at: datetime
 
@@ -59,3 +82,8 @@ class GalaxySectorResponse(BaseModel):
 class GalaxyScoutStateResponse(BaseModel):
     active_mission: GalaxyScoutMissionResponse | None
     last_report: GalaxyScoutReportResponse | None
+
+
+class GalaxyResourceMissionStateResponse(BaseModel):
+    active_mission: GalaxyResourceMissionResponse | None
+    last_result: GalaxyResourceMissionResultResponse | None

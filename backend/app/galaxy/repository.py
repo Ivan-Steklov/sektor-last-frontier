@@ -3,7 +3,11 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.galaxy.models import GalaxyKnownSystem, GalaxyScoutMission
+from app.galaxy.models import (
+    GalaxyKnownSystem,
+    GalaxyResourceMission,
+    GalaxyScoutMission,
+)
 
 
 def get_active_scout_mission_by_planet_id(
@@ -105,3 +109,39 @@ def upsert_known_system(
     db.flush()
 
     return known_system
+
+
+def get_active_resource_mission_by_planet_id(
+    db: Session,
+    planet_id: int,
+) -> GalaxyResourceMission | None:
+    return db.scalar(
+        select(GalaxyResourceMission).where(
+            GalaxyResourceMission.planet_id == planet_id,
+            GalaxyResourceMission.status == "active",
+        )
+    )
+
+
+def get_last_completed_resource_mission_by_planet_id(
+    db: Session,
+    planet_id: int,
+) -> GalaxyResourceMission | None:
+    return db.scalar(
+        select(GalaxyResourceMission)
+        .where(
+            GalaxyResourceMission.planet_id == planet_id,
+            GalaxyResourceMission.status == "completed",
+        )
+        .order_by(GalaxyResourceMission.completed_at.desc())
+    )
+
+
+def add_resource_mission(
+    db: Session,
+    mission: GalaxyResourceMission,
+) -> GalaxyResourceMission:
+    db.add(mission)
+    db.flush()
+
+    return mission
