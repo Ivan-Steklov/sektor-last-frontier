@@ -309,3 +309,19 @@ Countdown scout/resource missions теперь строится от `remaining_
 Изменение полностью frontend-only и использует уже существующие поля:
 - `scoutState.active_mission`
 - `resourceMissionState.active_mission`
+### Backend: выровнены galaxy schemas под текущие router/service импорты
+После попытки перевода galaxy schemas на новые имена классов был найден рассинхрон:
+- `router.py` и `service.py` продолжали импортировать старые имена схем;
+- это делало `schemas.py` несовместимым с остальным galaxy backend.
+
+Исправление:
+- в `backend/app/galaxy/schemas.py` возвращены текущие используемые имена схем:
+  - `GalaxySectorResponse`
+  - `GalaxyScoutStateResponse`
+  - `GalaxyResourceMissionStateResponse`
+  - и связанные response/request модели;
+- при этом сохранена явная ISO-сериализация datetime через `field_serializer`.
+
+Результат:
+- backend-импорты снова консистентны;
+- galaxy API отдает стабильные datetime-строки без переписывания service/router.
