@@ -1,12 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import "./ResearchPanel.css";
+
+type ResearchBranch = "economy" | "fleet" | "expedition" | "galaxy" | "defense";
+
+type ResearchRequirement = {
+  type: "building" | "research";
+  code: string;
+  level: number;
+  label: string;
+  met: boolean;
+};
 
 type ResearchItem = {
   code: string;
   name: string;
   description: string;
   effect: string;
+  branch: ResearchBranch;
+  max_level: number;
+  requirements: ResearchRequirement[];
+  blocked_reasons: string[];
   level: number;
   next_level: number;
   upgrade_metal_cost: number;
@@ -33,6 +47,31 @@ type ResearchResponse = {
 
 type ResearchPanelProps = {
   apiUrl: string;
+};
+
+const BRANCH_ORDER: ResearchBranch[] = [
+  "economy",
+  "fleet",
+  "expedition",
+  "galaxy",
+  "defense",
+];
+
+const BRANCH_TITLES: Record<ResearchBranch, string> = {
+  economy: "Экономика",
+  fleet: "Флот",
+  expedition: "Экспедиции",
+  galaxy: "Галактика",
+  defense: "Оборона",
+};
+
+const BRANCH_DESCRIPTIONS: Record<ResearchBranch, string> = {
+  economy: "Развитие добычи, энергии и общей производственной базы колонии.",
+  fleet:
+    "Технологии наступательного флота, полётов и инженерных систем кораблей.",
+  expedition: "Логистика дальних вылазок, транспорта и полевых операций.",
+  galaxy: "Разведка, навигация и работа с удалёнными системами сектора.",
+  defense: "Выживаемость, защита и устойчивость флота к угрозам.",
 };
 
 export function ResearchPanel({ apiUrl }: ResearchPanelProps) {
@@ -89,6 +128,29 @@ export function ResearchPanel({ apiUrl }: ResearchPanelProps) {
     return () => window.clearInterval(timerId);
   }, [queue?.id]);
 
+  const groupedResearch = useMemo(() => {
+    const groups = new Map<ResearchBranch, ResearchItem[]>();
+
+    for (const branch of BRANCH_ORDER) {
+      groups.set(branch, []);
+    }
+
+    for (const item of items) {
+      const group = groups.get(item.branch);
+
+      if (group !== undefined) {
+        group.push(item);
+      }
+    }
+
+    return BRANCH_ORDER.map((branch) => ({
+      branch,
+      title: BRANCH_TITLES[branch],
+      description: BRANCH_DESCRIPTIONS[branch],
+      items: groups.get(branch) ?? [],
+    })).filter((group) => group.items.length > 0);
+  }, [items]);
+
   async function startResearch(researchCode: string) {
     setIsLoading(true);
     setError("");
@@ -126,6 +188,10 @@ export function ResearchPanel({ apiUrl }: ResearchPanelProps) {
         <div>
           <p className="research-label">Лаборатория</p>
           <h2>Исследования</h2>
+          <p className="research-subtitle">
+            Технологии сгруппированы по веткам и используют реальные требования
+            для открытия.
+          </p>
         </div>
       </div>
 
@@ -140,44 +206,87 @@ export function ResearchPanel({ apiUrl }: ResearchPanelProps) {
 
       {error !== "" && <p className="research-error">{error}</p>}
 
-      <div className="research-grid">
-        {items.map((item) => (
-          <article className="research-item" key={item.code}>
-            <div className="research-item-header">
+      <div className="research-branches">
+        {groupedResearch.map((group) => (
+          <section className="research-branch" key={group.branch}>
+            <div className="research-branch-header">
               <div>
-                <h3>{item.name}</h3>
-                <p>{item.description}</p>
+                <p className="research-branch-label">Ветка</p>
+                <h3>{group.title}</h3>
               </div>
-              <strong>Ур. {item.level}</strong>
+              <p className="research-branch-description">{group.description}</p>
             </div>
 
-            <p className="research-effect">{item.effect}</p>
+            <div className="research-grid">
+              {group.items.map((item) => {
+                const isMaxLevel = item.level >= item.max_level;
 
-            <p className="research-cost">
-              Следующий уровень: {item.upgrade_metal_cost} металла,{" "}
-              {item.upgrade_crystal_cost} кристалла,{" "}
-              {formatDuration(item.upgrade_seconds)}
-            </p>
+                return (
+                  <article className="research-item" key={item.code}>
+                    <div className="research-item-header">
+                      <div>
+                        <h4>{item.name}</h4>
+                        <p>{item.description}</p>
+                      </div>
+                      <div className="research-levels">
+                        <strong>Ур. {item.level}</strong>
+                        <span>Макс. {item.max_level}</span>
+                      </div>
+                    </div>
 
-            <p className="research-requirement">
-              Требуется исследовательский центр ур.{" "}
-              {item.required_research_center_level}
-            </p>
+                    <p className="research-effect">{item.effect}</p>
 
-            {!item.requirements_met && (
-              <p className="research-requirement research-requirement-warning">
-                Требования не выполнены
-              </p>
-            )}
+                    {item.requirements.length > 0 && (
+                      <div className="research-prerequisites">
+                        <p className="research-prerequisites-title">
+                          Требования для открытия
+                        </p>
 
-            <button
-              className="research-button"
-              disabled={!item.can_research || isLoading}
-              onClick={() => startResearch(item.code)}
-            >
-              {item.is_in_queue ? "Исследуется" : "Исследовать"}
-            </button>
-          </article>
+                        <ul className="research-prerequisites-list">
+                          {item.requirements.map((requirement) => (
+                            <li
+                              className={
+                                requirement.met
+                                  ? "research-prerequisite research-prerequisite-met"
+                                  : "research-prerequisite research-prerequisite-unmet"
+                              }
+                              key={`${item.code}-${requirement.type}-${requirement.code}-${requirement.level}`}
+                            >
+                              {requirement.met ? "✓" : "•"} {requirement.label}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {isMaxLevel ? (
+                      <p className="research-max-level">
+                        Максимальный уровень достигнут
+                      </p>
+                    ) : (
+                      <p className="research-cost">
+                        Следующий уровень: {item.upgrade_metal_cost} металла,{" "}
+                        {item.upgrade_crystal_cost} кристалла,{" "}
+                        {formatDuration(item.upgrade_seconds)}
+                      </p>
+                    )}
+
+                    <button
+                      className="research-button"
+                      disabled={!item.can_research || isLoading}
+                      onClick={() => startResearch(item.code)}
+                    >
+                      {item.is_in_queue
+                        ? "Исследуется"
+                        : isMaxLevel
+                          ? "Максимум"
+                          : "Исследовать"}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
         ))}
       </div>
     </section>

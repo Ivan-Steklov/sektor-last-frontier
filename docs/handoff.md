@@ -329,12 +329,49 @@ Backend не менялся, используются уже существую�
 
 Это был минимальный безопасный фикс без переписывания business logic.
 ```
+
 ## Последний шаг
+
 После ручной проверки JSON galaxy endpoints подтверждено, что backend отдает корректные ISO datetime strings.
 
 Для закрепления результата добавлены тесты на datetime contract:
+
 - сериализация mission timestamps;
 - сериализация report/result completion timestamps;
 - добавление UTC для naive datetime.
 
 Это снижает риск регрессии в countdown/API-contract части galaxy.
+Исследования пока остаются на старых кодах (metal_mining, crystal_mining, energy, armor, weapons, shields, engines, recon, cargo, flight_range) для совместимости с БД и rules.py.
+Введены ветки исследований:
+economy
+fleet
+expedition
+galaxy
+defense
+Следующий шаг: вывести ветки исследований на frontend и сгруппировать список по branch.
+После frontend-группировки можно переходить к prerequisites/unlock metadata.
+Frontend ResearchPanel теперь ожидает от backend поля:
+branch
+max_level
+Визуализация дерева пока реализована как grouped sections, а не graph UI со стрелками.
+Следующий логичный шаг: вынести research types/API в отдельные frontend-файлы и добавить metadata prerequisites на backend.
+После prerequisites можно будет:
+показывать причины блокировки;
+строить настоящее дерево зависимостей.
+start_research() теперь валидирует:
+существование исследования;
+отсутствие активной очереди;
+max_level;
+базовое требование по research_center;
+tree prerequisites из ResearchDefinition.requirements.
+blocked_reasons сохранён в backend API, но на текущем этапе не выводится в research card UI.
+Frontend research cards используют более компактный UX:
+список requirements с зелёными/красными статусами;
+стоимость следующего уровня;
+кнопка запуска/disabled.
+ResearchRequirementsNotMetError теперь хранит message.
+start_research() формирует точные причины отказа вместо общего текста.
+Примеры новых ответов API:
+Требуется исследовательский центр ур. 2.
+Требуется Двигатели ур. 2, Разведка ур. 1.
+Достигнут максимальный уровень.

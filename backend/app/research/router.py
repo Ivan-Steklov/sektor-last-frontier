@@ -63,10 +63,10 @@ def upgrade_research(
             status_code=409,
             detail="Очередь исследований уже занята.",
         )
-    except ResearchRequirementsNotMetError:
+    except ResearchRequirementsNotMetError as error:
         raise HTTPException(
             status_code=400,
-            detail="Недостаточный уровень исследовательского центра.",
+            detail=error.message,
         )
     except NotEnoughResourcesError:
         raise HTTPException(

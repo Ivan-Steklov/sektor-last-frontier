@@ -4,7 +4,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.buildings.repository import get_by_planet_and_code as get_building_by_planet_and_code
-from app.research.catalog import RESEARCH, RESEARCH_BY_CODE
+from app.research.catalog import (
+    RESEARCH,
+    RESEARCH_BY_CODE,
+    ResearchRequirementDefinition,
+)
 from app.research.models import ResearchQueueItem, ResearchState
 from app.research.repository import (
     add_queue_item,
@@ -23,6 +27,7 @@ from app.research.schemas import (
     ResearchItemResponse,
     ResearchListResponse,
     ResearchQueueResponse,
+    ResearchRequirementResponse,
 )
 from app.resources.service import (
     NotEnoughResourcesError,
@@ -40,7 +45,9 @@ class ResearchQueueBusyError(Exception):
 
 
 class ResearchRequirementsNotMetError(Exception):
-    pass
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
 
 
 def ensure_research(
@@ -149,24 +156,51 @@ def get_current_research(
     for definition in RESEARCH:
         state = states_by_code[definition.code]
         next_level = state.level + 1
+        is_max_level = state.level >= definition.max_level
 
-        metal_cost, crystal_cost = research_upgrade_cost(
-            definition.code,
-            state.level,
+        requirement_responses = _build_requirement_responses(
+            db=db,
+            planet_id=planet_id,
+            requirements=definition.requirements,
         )
-        upgrade_seconds = research_upgrade_seconds(
-            definition.code,
-            state.level,
+        tree_requirements_met = all(
+            requirement.met
+            for requirement in requirement_responses
         )
-        required_center_level = required_research_center_level(next_level)
-        requirements_met = research_center_requirement_met(
+
+        if is_max_level:
+            metal_cost = 0
+            crystal_cost = 0
+            upgrade_seconds = 0
+            required_center_level = required_research_center_level(next_level)
+            base_requirements_met = False
+        else:
+            metal_cost, crystal_cost = research_upgrade_cost(
+                definition.code,
+                state.level,
+            )
+            upgrade_seconds = research_upgrade_seconds(
+                definition.code,
+                state.level,
+            )
+            required_center_level = required_research_center_level(next_level)
+            base_requirements_met = research_center_requirement_met(
+                research_center_level=research_center_level,
+                next_level=next_level,
+            )
+
+        full_requirements_met = (
+            base_requirements_met
+            and tree_requirements_met
+            and not is_max_level
+        )
+
+        blocked_reasons = _build_blocked_reasons(
+            requirement_responses=requirement_responses,
+            current_level=state.level,
+            max_level=definition.max_level,
+            required_research_center_level=required_center_level,
             research_center_level=research_center_level,
-            next_level=next_level,
-        )
-
-        is_in_queue = (
-            active_queue is not None
-            and active_queue.research_code == definition.code
         )
 
         research_items.append(
@@ -175,15 +209,25 @@ def get_current_research(
                 name=definition.name,
                 description=definition.description,
                 effect=definition.effect,
+                branch=definition.branch,
+                max_level=definition.max_level,
+                requirements=requirement_responses,
+                blocked_reasons=blocked_reasons,
                 level=state.level,
                 next_level=next_level,
                 upgrade_metal_cost=metal_cost,
                 upgrade_crystal_cost=crystal_cost,
                 upgrade_seconds=upgrade_seconds,
                 required_research_center_level=required_center_level,
-                requirements_met=requirements_met,
-                can_research=active_queue is None and requirements_met,
-                is_in_queue=is_in_queue,
+                requirements_met=full_requirements_met,
+                can_research=(
+                    active_queue is None
+                    and full_requirements_met
+                ),
+                is_in_queue=(
+                    active_queue is not None
+                    and active_queue.research_code == definition.code
+                ),
             )
         )
 
@@ -218,6 +262,13 @@ def start_research(
     if research is None:
         raise UnknownResearchError
 
+    definition = RESEARCH_BY_CODE[research_code]
+
+    if research.level >= definition.max_level:
+        raise ResearchRequirementsNotMetError(
+            "Достигнут максимальный уровень.",
+        )
+
     research_center = get_building_by_planet_and_code(
         db,
         planet_id,
@@ -225,12 +276,32 @@ def start_research(
     )
     research_center_level = research_center.level if research_center else 1
     next_level = research.level + 1
+    required_center_level = required_research_center_level(next_level)
 
     if not research_center_requirement_met(
         research_center_level=research_center_level,
         next_level=next_level,
     ):
-        raise ResearchRequirementsNotMetError
+        raise ResearchRequirementsNotMetError(
+            f"Требуется исследовательский центр ур. {required_center_level}.",
+        )
+
+    requirement_responses = _build_requirement_responses(
+        db=db,
+        planet_id=planet_id,
+        requirements=definition.requirements,
+    )
+
+    unmet_requirement_labels = [
+        requirement.label
+        for requirement in requirement_responses
+        if not requirement.met
+    ]
+
+    if unmet_requirement_labels:
+        raise ResearchRequirementsNotMetError(
+            "Требуется " + ", ".join(unmet_requirement_labels) + ".",
+        )
 
     metal_cost, crystal_cost = research_upgrade_cost(
         research_code,
@@ -271,6 +342,75 @@ def start_research(
     except IntegrityError:
         db.rollback()
         raise ResearchQueueBusyError
+
+
+def _build_requirement_responses(
+    db: Session,
+    planet_id: int,
+    requirements: tuple[ResearchRequirementDefinition, ...],
+) -> list[ResearchRequirementResponse]:
+    responses: list[ResearchRequirementResponse] = []
+
+    for requirement in requirements:
+        if requirement.type == "building":
+            building = get_building_by_planet_and_code(
+                db,
+                planet_id,
+                requirement.code,
+            )
+            met = building is not None and building.level >= requirement.level
+        elif requirement.type == "research":
+            research = get_by_planet_and_code(
+                db,
+                planet_id,
+                requirement.code,
+            )
+            met = research is not None and research.level >= requirement.level
+        else:
+            met = False
+
+        responses.append(
+            ResearchRequirementResponse(
+                type=requirement.type,
+                code=requirement.code,
+                level=requirement.level,
+                label=requirement.label,
+                met=met,
+            )
+        )
+
+    return responses
+
+
+def _build_blocked_reasons(
+    requirement_responses: list[ResearchRequirementResponse],
+    current_level: int,
+    max_level: int,
+    required_research_center_level: int,
+    research_center_level: int,
+) -> list[str]:
+    reasons: list[str] = []
+
+    if current_level >= max_level:
+        reasons.append("Достигнут максимальный уровень")
+
+    if research_center_level < required_research_center_level:
+        reasons.append(
+            f"Требуется исследовательский центр ур. {required_research_center_level}"
+        )
+
+    for requirement in requirement_responses:
+        if requirement.met:
+            continue
+
+        requirement_reason = f"Требуется {requirement.label}"
+
+        if requirement_reason in reasons:
+            continue
+
+        reasons.append(requirement_reason)
+
+    return reasons
 
 
 def _to_queue_response(
