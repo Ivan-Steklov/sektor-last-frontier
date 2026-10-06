@@ -1,12 +1,12 @@
 def expedition_duration_seconds(
     engines_level: int,
 ) -> int:
-    base_seconds = 60
+    base_seconds = 600
     reduction_percent = engines_level * 5
 
     adjusted_seconds = int(base_seconds * (1 - reduction_percent / 100))
 
-    return max(30, adjusted_seconds)
+    return max(300, adjusted_seconds)
 
 
 def expedition_outcome_chances(
