@@ -1,6 +1,29 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
+
+
+ResearchBranch = Literal[
+    "economy",
+    "fleet",
+    "expedition",
+    "galaxy",
+    "defense",
+]
+
+ResearchRequirementType = Literal[
+    "building",
+    "research",
+]
+
+
+class ResearchRequirementResponse(BaseModel):
+    type: ResearchRequirementType
+    code: str
+    level: int
+    label: str
+    met: bool
 
 
 class ResearchItemResponse(BaseModel):
@@ -8,6 +31,10 @@ class ResearchItemResponse(BaseModel):
     name: str
     description: str
     effect: str
+    branch: ResearchBranch
+    max_level: int
+    requirements: list[ResearchRequirementResponse]
+    blocked_reasons: list[str]
     level: int
     next_level: int
     upgrade_metal_cost: int

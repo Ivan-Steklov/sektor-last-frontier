@@ -7,6 +7,12 @@ class ShipItemResponse(BaseModel):
     code: str
     name: str
     description: str
+    role: str
+    attack: int
+    defense: int
+    speed: int
+    cargo_capacity: int
+    fuel_usage: int
     quantity: int
     build_metal_cost: int
     build_crystal_cost: int

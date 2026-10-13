@@ -15,7 +15,7 @@ def test_normalize_sector_radius() -> None:
     assert normalize_sector_radius(-10) == 1
     assert normalize_sector_radius(0) == 1
     assert normalize_sector_radius(3) == 3
-    assert normalize_sector_radius(10) == 5
+    assert normalize_sector_radius(10) == 9
 
 
 def test_sector_system_numbers_never_go_below_one() -> None:

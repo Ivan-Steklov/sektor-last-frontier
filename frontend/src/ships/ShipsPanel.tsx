@@ -6,6 +6,12 @@ type ShipItem = {
   code: string;
   name: string;
   description: string;
+  role: string;
+  attack: number;
+  defense: number;
+  speed: number;
+  cargo_capacity: number;
+  fuel_usage: number;
   quantity: number;
   build_metal_cost: number;
   build_crystal_cost: number;
@@ -41,9 +47,9 @@ export function ShipsPanel({ apiUrl }: ShipsPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   async function loadShips() {
-    const response = await fetch(
-      `${apiUrl}/api/ships/current?telegram_id=1`,
-    );
+    const response = await fetch(`${apiUrl}/api/ships/current?telegram_id=1`, {
+      cache: "no-store",
+    });
 
     if (!response.ok) {
       throw new Error("Не удалось загрузить корабли");
@@ -99,7 +105,9 @@ export function ShipsPanel({ apiUrl }: ShipsPanelProps) {
 
       if (!response.ok) {
         const data = await response.json().catch(() => null);
-        throw new Error(data?.detail ?? "Не удалось начать строительство корабля");
+        throw new Error(
+          data?.detail ?? "Не удалось начать строительство корабля",
+        );
       }
 
       const data: ShipResponse = await response.json();
@@ -124,15 +132,26 @@ export function ShipsPanel({ apiUrl }: ShipsPanelProps) {
         <div>
           <p className="ships-label">Верфь</p>
           <h2>Корабли</h2>
+          <p className="ships-heading-text">
+            Флот теперь имеет роли и базовые характеристики. Позже эти значения
+            будут влиять на длительность миссий, грузоподъёмность и боевые
+            расчёты.
+          </p>
         </div>
       </div>
 
       {queue !== null && (
         <div className="ships-queue">
-          <strong>
-            {queue.ship_name} × {queue.quantity}
-          </strong>
-          <span>{formatDuration(remainingSeconds)}</span>
+          <div>
+            <span>Строится</span>
+            <strong>
+              {queue.ship_name} × {queue.quantity}
+            </strong>
+          </div>
+
+          <div className="ships-queue-time">
+            {formatDuration(remainingSeconds)}
+          </div>
         </div>
       )}
 
@@ -143,32 +162,58 @@ export function ShipsPanel({ apiUrl }: ShipsPanelProps) {
           <article className="ships-item" key={item.code}>
             <div className="ships-item-header">
               <div>
+                <div className="ships-role">{item.role}</div>
                 <h3>{item.name}</h3>
                 <p>{item.description}</p>
               </div>
-              <strong>{item.quantity} шт.</strong>
+
+              <div className="ships-count">
+                <strong>{item.quantity}</strong>
+                <span>шт.</span>
+              </div>
             </div>
 
-            <p className="ships-cost">
-              Стоимость: {item.build_metal_cost} металла,{" "}
-              {item.build_crystal_cost} кристалла,{" "}
-              {formatDuration(item.build_seconds)}
-            </p>
+            <div className="ships-stats-grid">
+              <ShipStat label="Атака" value={item.attack} />
+              <ShipStat label="Защита" value={item.defense} />
+              <ShipStat label="Скорость" value={item.speed} />
+              <ShipStat label="Груз" value={formatNumber(item.cargo_capacity)} />
+              <ShipStat label="Расход" value={item.fuel_usage} />
+              <ShipStat
+                label="Верфь"
+                value={`ур. ${item.required_shipyard_level}`}
+              />
+            </div>
 
-            <p className="ships-requirement">
-              Требуется верфь ур. {item.required_shipyard_level}
-            </p>
+            <div className="ships-build-info">
+              <div>
+                <span>Металл</span>
+                <strong>{formatNumber(item.build_metal_cost)}</strong>
+              </div>
+
+              <div>
+                <span>Кристалл</span>
+                <strong>{formatNumber(item.build_crystal_cost)}</strong>
+              </div>
+
+              <div>
+                <span>Время</span>
+                <strong>{formatDuration(item.build_seconds)}</strong>
+              </div>
+            </div>
 
             {!item.requirements_met && (
               <p className="ships-requirement ships-requirement-warning">
-                Требования не выполнены
+                Требуется верфь ур. {item.required_shipyard_level}
               </p>
             )}
 
             <button
               className="ships-button"
               disabled={!item.can_build || isLoading}
-              onClick={() => buildShip(item.code)}
+              onClick={() => {
+                void buildShip(item.code);
+              }}
             >
               {item.is_in_queue ? "Строится" : "Построить 1"}
             </button>
@@ -179,9 +224,29 @@ export function ShipsPanel({ apiUrl }: ShipsPanelProps) {
   );
 }
 
+function ShipStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="ships-stat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
 function formatDuration(totalSeconds: number): string {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
 
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function formatNumber(value: number): string {
+  return value.toLocaleString("ru-RU");
 }

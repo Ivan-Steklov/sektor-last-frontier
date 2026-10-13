@@ -3,6 +3,7 @@ import { AllianceScreen } from "./AllianceScreen";
 import { BuildingsScreen } from "./BuildingsScreen";
 import { FleetScreen } from "./FleetScreen";
 import { GalaxyScreen } from "./GalaxyScreen";
+import { MissionsScreen } from "./MissionsScreen";
 import { PlanetScreen } from "./PlanetScreen";
 import { ResearchScreen } from "./ResearchScreen";
 
@@ -58,6 +59,10 @@ export function GameContent({
 
   if (activeTab === "galaxy") {
     return <GalaxyScreen />;
+  }
+
+  if (activeTab === "missions") {
+    return <MissionsScreen />;
   }
 
   return <AllianceScreen />;

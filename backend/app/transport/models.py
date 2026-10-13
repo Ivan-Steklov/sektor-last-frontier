@@ -46,6 +46,11 @@ class TransportMission(Base):
         default=1,
         server_default="1",
     )
+    heavy_transport_count: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default="0",
+    )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     finishes_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(

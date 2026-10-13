@@ -1,0 +1,146 @@
+﻿MAX_SECTOR_RADIUS = 9
+BASE_MAX_FLIGHT_DISTANCE = 5
+
+
+def normalize_sector_radius(radius: int) -> int:
+    if radius < 1:
+        return 1
+
+    if radius > MAX_SECTOR_RADIUS:
+        return MAX_SECTOR_RADIUS
+
+    return radius
+
+
+def sector_system_numbers(
+    center_system: int,
+    radius: int,
+) -> list[int]:
+    normalized_radius = normalize_sector_radius(radius)
+
+    start = max(1, center_system - normalized_radius)
+    end = center_system + normalized_radius
+
+    return list(range(start, end + 1))
+
+
+def system_display_name(
+    galaxy: int,
+    system: int,
+) -> str:
+    return f"РЎРёСЃС‚РµРјР° {galaxy}-{system}"
+
+
+def system_richness(
+    galaxy: int,
+    system: int,
+) -> str:
+    value = (galaxy * 31 + system * 17) % 100
+
+    if value >= 75:
+        return "Р±РѕРіР°С‚Р°СЏ"
+
+    if value >= 35:
+        return "РѕР±С‹С‡РЅР°СЏ"
+
+    return "Р±РµРґРЅР°СЏ"
+
+
+def system_danger_level(
+    galaxy: int,
+    system: int,
+) -> int:
+    value = (galaxy * 13 + system * 29) % 100
+
+    if value >= 80:
+        return 3
+
+    if value >= 45:
+        return 2
+
+    return 1
+
+
+def system_danger_label(
+    danger_level: int,
+) -> str:
+    if danger_level >= 3:
+        return "РІС‹СЃРѕРєР°СЏ"
+
+    if danger_level == 2:
+        return "СЃСЂРµРґРЅСЏСЏ"
+
+    return "РЅРёР·РєР°СЏ"
+
+
+def scout_duration_seconds(
+    distance: int,
+) -> int:
+    safe_distance = max(1, distance)
+
+    return min(180, 45 + safe_distance * 15)
+
+
+def scout_discovered_signals(
+    galaxy: int,
+    system: int,
+) -> int:
+    return ((galaxy * 19 + system * 23) % 4) + 1
+
+
+def max_flight_distance(
+    flight_range_level: int,
+) -> int:
+    return BASE_MAX_FLIGHT_DISTANCE + flight_range_level * 2
+
+
+def flight_distance_allowed(
+    distance: int,
+    flight_range_level: int,
+) -> bool:
+    return distance <= max_flight_distance(flight_range_level)
+
+
+def build_scout_report(
+    target_galaxy: int,
+    target_system: int,
+) -> dict:
+    danger_level = system_danger_level(
+        galaxy=target_galaxy,
+        system=target_system,
+    )
+    richness = system_richness(
+        galaxy=target_galaxy,
+        system=target_system,
+    )
+    danger = system_danger_label(danger_level)
+    discovered_signals = scout_discovered_signals(
+        galaxy=target_galaxy,
+        system=target_system,
+    )
+
+    if danger_level >= 3:
+        description = (
+            f"Р Р°Р·РІРµРґРєР° СЃРёСЃС‚РµРјС‹ {target_galaxy}:{target_system} РѕР±РЅР°СЂСѓР¶РёР»Р° "
+            "РЅРµСЃС‚Р°Р±РёР»СЊРЅС‹Рµ СЃРёРіРЅР°Р»С‹ Рё РїРѕРІС‹С€РµРЅРЅСѓСЋ Р°РєС‚РёРІРЅРѕСЃС‚СЊ РЅРµРёР·РІРµСЃС‚РЅС‹С… РѕР±СЉРµРєС‚РѕРІ."
+        )
+    elif richness == "Р±РѕРіР°С‚Р°СЏ":
+        description = (
+            f"Р Р°Р·РІРµРґРєР° СЃРёСЃС‚РµРјС‹ {target_galaxy}:{target_system} РѕР±РЅР°СЂСѓР¶РёР»Р° "
+            "РїРµСЂСЃРїРµРєС‚РёРІРЅС‹Рµ СЂРµСЃСѓСЂСЃРЅС‹Рµ Р·РѕРЅС‹."
+        )
+    else:
+        description = (
+            f"Р Р°Р·РІРµРґРєР° СЃРёСЃС‚РµРјС‹ {target_galaxy}:{target_system} Р·Р°РІРµСЂС€РµРЅР°. "
+            "РџРѕР»СѓС‡РµРЅС‹ Р±Р°Р·РѕРІС‹Рµ РЅР°РІРёРіР°С†РёРѕРЅРЅС‹Рµ РґР°РЅРЅС‹Рµ."
+        )
+
+    return {
+        "target_galaxy": target_galaxy,
+        "target_system": target_system,
+        "richness": richness,
+        "danger": danger,
+        "danger_level": danger_level,
+        "discovered_signals": discovered_signals,
+        "description": description,
+    }

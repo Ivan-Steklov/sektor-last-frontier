@@ -12,6 +12,7 @@ class ExpeditionFleetRequest(BaseModel):
     scout: int = 0
     transport: int = 0
     fighter: int = 0
+    heavy_transport: int = 0
 
 
 class StartMissionRequest(BaseModel):

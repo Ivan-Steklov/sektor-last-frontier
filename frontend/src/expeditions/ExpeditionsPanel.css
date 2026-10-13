@@ -71,3 +71,75 @@
   background: #1b2532;
   cursor: not-allowed;
 }
+
+.expeditions-bonus-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.expeditions-bonus-card {
+  padding: 12px;
+  border: 1px solid #344256;
+  border-radius: 8px;
+  background: #0f1722;
+}
+
+.expeditions-bonus-card__label {
+  display: block;
+  margin-bottom: 6px;
+  color: #8ea4c2;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.expeditions-bonus-card strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #e8f2ff;
+}
+
+.expeditions-bonus-card p {
+  margin: 0;
+  color: #b7c5d8;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.expeditions-bonuses-note {
+  margin: 12px 0 0;
+  color: #7d8da3;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+  .expeditions-bonus-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.expeditions-mission-note,
+.expeditions-empty {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid rgba(120, 170, 255, 0.24);
+  border-radius: 10px;
+  background: rgba(20, 32, 55, 0.72);
+  color: #b7c5d8;
+}
+
+.expeditions-mission-note strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #e8f2ff;
+}
+
+.expeditions-mission-note p,
+.expeditions-empty {
+  line-height: 1.45;
+}
+
+.expeditions-mission-note p {
+  margin: 0;
+}

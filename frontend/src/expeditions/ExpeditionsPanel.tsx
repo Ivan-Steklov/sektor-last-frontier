@@ -20,66 +20,67 @@ type ExpeditionResponse = {
   } | null;
 };
 
-type ShipsResponse = {
-  ships: {
-    code: string;
-    name: string;
-    quantity: number;
-  }[];
+type ResearchItem = {
+  code: string;
+  name: string;
+  level: number;
+  effect: string;
 };
 
-type FleetForm = {
-  scout: number;
-  transport: number;
-  fighter: number;
+type ResearchCurrentResponse = {
+  research: ResearchItem[];
+  queue: unknown | null;
+};
+
+type ResearchLevels = {
+  engines: number;
+  recon: number;
+  cargo: number;
+};
+
+type OutcomeChances = {
+  empty: number;
+  metal: number;
+  crystal: number;
+  loss: number;
 };
 
 type ExpeditionsPanelProps = {
   apiUrl: string;
 };
 
+const TELEGRAM_ID = 1;
+
+const DEFAULT_RESEARCH_LEVELS: ResearchLevels = {
+  engines: 0,
+  recon: 0,
+  cargo: 0,
+};
+
 export function ExpeditionsPanel({ apiUrl }: ExpeditionsPanelProps) {
   const [state, setState] = useState<ExpeditionResponse | null>(null);
-  const [availableShips, setAvailableShips] = useState<Record<string, number>>({
-    scout: 0,
-    transport: 0,
-    fighter: 0,
-  });
-  const [fleet, setFleet] = useState<FleetForm>({
-    scout: 0,
-    transport: 0,
-    fighter: 0,
-  });
+  const [researchLevels, setResearchLevels] = useState<ResearchLevels>(
+    DEFAULT_RESEARCH_LEVELS,
+  );
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
 
   async function loadData() {
-    const [expeditionResponse, shipsResponse] = await Promise.all([
-      fetch(`${apiUrl}/api/expeditions/current?telegram_id=1`),
-      fetch(`${apiUrl}/api/ships/current?telegram_id=1`),
+    const [expeditionResponse, researchResponse] = await Promise.all([
+      fetch(`${apiUrl}/api/expeditions/current?telegram_id=${TELEGRAM_ID}`),
+      fetch(`${apiUrl}/api/research/current?telegram_id=${TELEGRAM_ID}`),
     ]);
 
-    if (!expeditionResponse.ok || !shipsResponse.ok) {
+    if (!expeditionResponse.ok || !researchResponse.ok) {
       throw new Error("Не удалось загрузить экспедиции");
     }
 
     const expeditionData: ExpeditionResponse = await expeditionResponse.json();
-    const shipsData: ShipsResponse = await shipsResponse.json();
-
-    const mappedShips: Record<string, number> = {
-      scout: 0,
-      transport: 0,
-      fighter: 0,
-    };
-
-    for (const ship of shipsData.ships) {
-      mappedShips[ship.code] = ship.quantity;
-    }
+    const researchData: ResearchCurrentResponse = await researchResponse.json();
 
     setState(expeditionData);
-    setAvailableShips(mappedShips);
-    setRemainingSeconds(expeditionData.active_expedition?.remaining_seconds ?? 0);
+    setResearchLevels(readExpeditionResearchLevels(researchData));
+    setRemainingSeconds(expeditionRemainingSeconds(expeditionData));
   }
 
   useEffect(() => {
@@ -93,7 +94,10 @@ export function ExpeditionsPanel({ apiUrl }: ExpeditionsPanelProps) {
   }, [apiUrl]);
 
   useEffect(() => {
-    if (state?.active_expedition === null || state?.active_expedition === undefined) {
+    if (
+      state?.active_expedition === null ||
+      state?.active_expedition === undefined
+    ) {
       return;
     }
 
@@ -113,68 +117,10 @@ export function ExpeditionsPanel({ apiUrl }: ExpeditionsPanelProps) {
     return () => window.clearInterval(timerId);
   }, [state?.active_expedition?.id]);
 
-  function updateFleet(shipCode: keyof FleetForm, value: string) {
-    const parsed = Number(value);
-
-    if (Number.isNaN(parsed) || parsed < 0) {
-      return;
-    }
-
-    const maxValue = availableShips[shipCode] ?? 0;
-
-    setFleet((current) => ({
-      ...current,
-      [shipCode]: Math.min(parsed, maxValue),
-    }));
-  }
-
-  async function startExpedition() {
-    setIsLoading(true);
-    setError("");
-
-    try {
-      const response = await fetch(
-        `${apiUrl}/api/expeditions/start?telegram_id=1`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            ships: fleet,
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => null);
-        throw new Error(data?.detail ?? "Не удалось отправить экспедицию");
-      }
-
-      const data: ExpeditionResponse = await response.json();
-
-      setState(data);
-      setRemainingSeconds(data.active_expedition?.remaining_seconds ?? 0);
-      setFleet({
-        scout: 0,
-        transport: 0,
-        fighter: 0,
-      });
-
-      await loadData();
-    } catch (startError: unknown) {
-      setError(
-        startError instanceof Error
-          ? startError.message
-          : "Не удалось отправить экспедицию",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  const expeditionActive =
-    state?.active_expedition !== null && state?.active_expedition !== undefined;
+  const durationSeconds = expeditionDurationSeconds(researchLevels.engines);
+  const baseDurationSeconds = expeditionDurationSeconds(0);
+  const outcomeChances = expeditionOutcomeChances(researchLevels.recon);
+  const cargoBonus = cargoMultiplier(researchLevels.cargo);
 
   return (
     <section className="expeditions-section">
@@ -185,13 +131,54 @@ export function ExpeditionsPanel({ apiUrl }: ExpeditionsPanelProps) {
         </div>
       </div>
 
+      <div className="expeditions-mission-note">
+        <strong>Запуск экспедиций перенесён во вкладку «Миссии».</strong>
+        <p>
+          Флот теперь показывает состояние экспедиции и бонусы кораблей/исследований,
+          а отправка выполняется через единый центр миссий.
+        </p>
+      </div>
+
       <div className="expeditions-bonuses">
-        <strong>Исследования влияют на экспедиции</strong>
-        <ul>
-          <li>Двигатели уменьшают время полёта.</li>
-          <li>Грузовые системы увеличивают найденную добычу.</li>
-          <li>Разведка снижает риск потерь.</li>
-        </ul>
+        <strong>Модификаторы экспедиции</strong>
+
+        <div className="expeditions-bonus-grid">
+          <div className="expeditions-bonus-card">
+            <span className="expeditions-bonus-card__label">
+              Двигатели ур. {researchLevels.engines}
+            </span>
+            <strong>{formatDuration(durationSeconds)}</strong>
+            <p>
+              Длительность экспедиции. Базовое время:{" "}
+              {formatDuration(baseDurationSeconds)}.
+            </p>
+          </div>
+
+          <div className="expeditions-bonus-card">
+            <span className="expeditions-bonus-card__label">
+              Разведка ур. {researchLevels.recon}
+            </span>
+            <strong>Риск потерь: {outcomeChances.loss}%</strong>
+            <p>
+              Шансы: пусто {outcomeChances.empty}%, металл{" "}
+              {outcomeChances.metal}%, кристалл {outcomeChances.crystal}%,
+              потери {outcomeChances.loss}%.
+            </p>
+          </div>
+
+          <div className="expeditions-bonus-card">
+            <span className="expeditions-bonus-card__label">
+              Грузовые отсеки ур. {researchLevels.cargo}
+            </span>
+            <strong>x{cargoBonus.toFixed(2)}</strong>
+            <p>Множитель найденного металла и кристалла.</p>
+          </div>
+        </div>
+
+        <p className="expeditions-bonuses-note">
+          Эти значения повторяют текущие backend-правила для подсказки игроку.
+          Итог миссии всё равно рассчитывает сервер.
+        </p>
       </div>
 
       {state?.active_expedition && (
@@ -215,71 +202,80 @@ export function ExpeditionsPanel({ apiUrl }: ExpeditionsPanelProps) {
         </div>
       )}
 
+      {state && !state.active_expedition && !state.last_result && (
+        <div className="expeditions-empty">
+          Экспедиций в пути нет. Новую экспедицию можно отправить во вкладке
+          «Миссии».
+        </div>
+      )}
+
       {error !== "" && <p className="expeditions-error">{error}</p>}
-
-      <div className="expeditions-form">
-        <h3>Отправить флот</h3>
-
-        <FleetInput
-          label={`Разведчик (доступно: ${availableShips.scout})`}
-          value={fleet.scout}
-          disabled={expeditionActive || isLoading}
-          onChange={(value) => updateFleet("scout", value)}
-        />
-
-        <FleetInput
-          label={`Транспортник (доступно: ${availableShips.transport})`}
-          value={fleet.transport}
-          disabled={expeditionActive || isLoading}
-          onChange={(value) => updateFleet("transport", value)}
-        />
-
-        <FleetInput
-          label={`Истребитель (доступно: ${availableShips.fighter})`}
-          value={fleet.fighter}
-          disabled={expeditionActive || isLoading}
-          onChange={(value) => updateFleet("fighter", value)}
-        />
-
-        <button
-          className="expeditions-button"
-          disabled={expeditionActive || isLoading}
-          onClick={() => {
-            void startExpedition();
-          }}
-        >
-          Отправить экспедицию
-        </button>
-      </div>
     </section>
   );
 }
 
-type FleetInputProps = {
-  label: string;
-  value: number;
-  disabled: boolean;
-  onChange: (value: string) => void;
-};
+function readExpeditionResearchLevels(
+  researchData: ResearchCurrentResponse,
+): ResearchLevels {
+  return {
+    engines: readResearchLevel(researchData, "engines"),
+    recon: readResearchLevel(researchData, "recon"),
+    cargo: readResearchLevel(researchData, "cargo"),
+  };
+}
 
-function FleetInput({ label, value, disabled, onChange }: FleetInputProps) {
+function readResearchLevel(
+  researchData: ResearchCurrentResponse,
+  code: string,
+): number {
   return (
-    <label className="expeditions-input">
-      <span>{label}</span>
-      <input
-        type="number"
-        min={0}
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </label>
+    researchData.research.find((researchItem) => researchItem.code === code)
+      ?.level ?? 0
   );
 }
 
+function expeditionRemainingSeconds(data: ExpeditionResponse): number {
+  return data.active_expedition?.remaining_seconds ?? 0;
+}
+
+function expeditionDurationSeconds(enginesLevel: number): number {
+  const baseSeconds = 60;
+  const reductionPercent = enginesLevel * 5;
+  const adjustedSeconds = Math.trunc(
+    baseSeconds * (1 - reductionPercent / 100),
+  );
+
+  return Math.max(30, adjustedSeconds);
+}
+
+function expeditionOutcomeChances(reconLevel: number): OutcomeChances {
+  const emptyChance = 30;
+  let metalChance = 25;
+  let crystalChance = 25;
+  let lossChance = 20;
+
+  const reduction = Math.min(lossChance - 5, reconLevel * 3);
+
+  lossChance -= reduction;
+  metalChance += Math.floor(reduction / 2);
+  crystalChance += reduction - Math.floor(reduction / 2);
+
+  return {
+    empty: emptyChance,
+    metal: metalChance,
+    crystal: crystalChance,
+    loss: lossChance,
+  };
+}
+
+function cargoMultiplier(cargoLevel: number): number {
+  return 1 + cargoLevel * 0.1;
+}
+
 function formatDuration(totalSeconds: number): string {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
 
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }

@@ -1,5 +1,5 @@
-MAX_SECTOR_RADIUS = 5
-MAX_SCOUT_DISTANCE = 5
+MAX_SECTOR_RADIUS = 9
+BASE_MAX_FLIGHT_DISTANCE = 5
 
 
 def normalize_sector_radius(radius: int) -> int:
@@ -86,6 +86,19 @@ def scout_discovered_signals(
     system: int,
 ) -> int:
     return ((galaxy * 19 + system * 23) % 4) + 1
+
+
+def max_flight_distance(
+    flight_range_level: int,
+) -> int:
+    return BASE_MAX_FLIGHT_DISTANCE + flight_range_level * 2
+
+
+def flight_distance_allowed(
+    distance: int,
+    flight_range_level: int,
+) -> bool:
+    return distance <= max_flight_distance(flight_range_level)
 
 
 def build_scout_report(

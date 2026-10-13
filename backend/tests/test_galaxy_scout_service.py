@@ -17,6 +17,8 @@ from app.galaxy.service import (
     start_galaxy_scout_mission,
 )
 from app.planets.service import get_or_create_home_planet
+from app.research.repository import get_by_planet_and_code as get_research_by_planet_and_code
+from app.research.service import ensure_research
 from app.ships.repository import get_by_planet_and_code
 from app.ships.service import ensure_ships
 
@@ -141,12 +143,16 @@ def test_cannot_scout_home_system(db_session) -> None:
         )
 
 
-def test_cannot_scout_too_far_system(db_session) -> None:
+def test_cannot_scout_too_far_system_without_flight_range_research(db_session) -> None:
     planet = get_or_create_home_planet(
         db=db_session,
         telegram_id=5005,
     )
     ensure_ships(
+        db=db_session,
+        planet_id=planet.id,
+    )
+    ensure_research(
         db=db_session,
         planet_id=planet.id,
     )
@@ -166,14 +172,62 @@ def test_cannot_scout_too_far_system(db_session) -> None:
             db=db_session,
             telegram_id=5005,
             target_galaxy=planet.galaxy,
-            target_system=planet.system + 10,
+            target_system=planet.system + 6,
         )
+
+
+def test_flight_range_research_allows_scouting_more_distant_system(db_session) -> None:
+    planet = get_or_create_home_planet(
+        db=db_session,
+        telegram_id=5006,
+    )
+    ensure_ships(
+        db=db_session,
+        planet_id=planet.id,
+    )
+    ensure_research(
+        db=db_session,
+        planet_id=planet.id,
+    )
+
+    scout = get_by_planet_and_code(
+        db=db_session,
+        planet_id=planet.id,
+        ship_code="scout",
+    )
+    assert scout is not None
+
+    scout.quantity = 1
+
+    flight_range = get_research_by_planet_and_code(
+        db_session,
+        planet.id,
+        "flight_range",
+    )
+    assert flight_range is not None
+    flight_range.level = 1
+
+    db_session.commit()
+
+    start_galaxy_scout_mission(
+        db=db_session,
+        telegram_id=5006,
+        target_galaxy=planet.galaxy,
+        target_system=planet.system + 6,
+    )
+
+    active = get_active_scout_mission_by_planet_id(
+        db=db_session,
+        planet_id=planet.id,
+    )
+    assert active is not None
+    assert active.target_system == planet.system + 6
 
 
 def test_completed_scout_mission_returns_scout_and_report(db_session) -> None:
     planet = get_or_create_home_planet(
         db=db_session,
-        telegram_id=5006,
+        telegram_id=5007,
     )
     ensure_ships(
         db=db_session,
@@ -192,7 +246,7 @@ def test_completed_scout_mission_returns_scout_and_report(db_session) -> None:
 
     start_galaxy_scout_mission(
         db=db_session,
-        telegram_id=5006,
+        telegram_id=5007,
         target_galaxy=planet.galaxy,
         target_system=planet.system + 1,
     )
@@ -213,7 +267,7 @@ def test_completed_scout_mission_returns_scout_and_report(db_session) -> None:
 
     state = get_galaxy_scout_state(
         db=db_session,
-        telegram_id=5006,
+        telegram_id=5007,
     )
 
     assert state.active_mission is None
@@ -232,7 +286,7 @@ def test_completed_scout_mission_returns_scout_and_report(db_session) -> None:
 def test_completed_scout_mission_creates_known_system(db_session) -> None:
     planet = get_or_create_home_planet(
         db=db_session,
-        telegram_id=5007,
+        telegram_id=5008,
     )
     ensure_ships(
         db=db_session,
@@ -253,7 +307,7 @@ def test_completed_scout_mission_creates_known_system(db_session) -> None:
 
     start_galaxy_scout_mission(
         db=db_session,
-        telegram_id=5007,
+        telegram_id=5008,
         target_galaxy=planet.galaxy,
         target_system=target_system,
     )
@@ -287,7 +341,7 @@ def test_completed_scout_mission_creates_known_system(db_session) -> None:
 def test_galaxy_sector_marks_scouted_system(db_session) -> None:
     planet = get_or_create_home_planet(
         db=db_session,
-        telegram_id=5008,
+        telegram_id=5009,
     )
     ensure_ships(
         db=db_session,
@@ -308,7 +362,7 @@ def test_galaxy_sector_marks_scouted_system(db_session) -> None:
 
     start_galaxy_scout_mission(
         db=db_session,
-        telegram_id=5008,
+        telegram_id=5009,
         target_galaxy=planet.galaxy,
         target_system=target_system,
     )
@@ -324,7 +378,7 @@ def test_galaxy_sector_marks_scouted_system(db_session) -> None:
 
     sector = get_galaxy_sector(
         db=db_session,
-        telegram_id=5008,
+        telegram_id=5009,
     )
 
     target = next(

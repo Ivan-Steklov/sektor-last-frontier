@@ -17,8 +17,8 @@ from app.galaxy.repository import (
     upsert_known_system,
 )
 from app.galaxy.rules import (
-    MAX_SCOUT_DISTANCE,
     build_scout_report,
+    flight_distance_allowed,
     scout_duration_seconds,
     sector_system_numbers,
     system_display_name,
@@ -35,6 +35,7 @@ from app.galaxy.schemas import (
     GalaxySystemItem,
 )
 from app.planets.service import get_or_create_home_planet
+from app.research.repository import get_by_planet_and_code as get_research_by_planet_and_code
 from app.resources.service import calculate_current_resource_values, sync_resources
 from app.ships.repository import get_by_planet_and_code
 from app.ships.service import ensure_ships
@@ -283,8 +284,16 @@ def start_galaxy_scout_mission(
         raise GalaxyScoutInvalidTargetError
 
     distance = abs(target_system - home_planet.system)
+    flight_range_level = _get_research_level(
+        db=db,
+        planet_id=home_planet.id,
+        research_code="flight_range",
+    )
 
-    if distance > MAX_SCOUT_DISTANCE:
+    if not flight_distance_allowed(
+        distance=distance,
+        flight_range_level=flight_range_level,
+    ):
         raise GalaxyScoutTargetTooFarError
 
     scout_state = get_by_planet_and_code(
@@ -363,8 +372,16 @@ def start_galaxy_resource_mission(
         raise GalaxyResourceMissionInvalidTargetError
 
     distance = abs(target_system - home_planet.system)
+    flight_range_level = _get_research_level(
+        db=db,
+        planet_id=home_planet.id,
+        research_code="flight_range",
+    )
 
-    if distance > MAX_SCOUT_DISTANCE:
+    if not flight_distance_allowed(
+        distance=distance,
+        flight_range_level=flight_range_level,
+    ):
         raise GalaxyResourceMissionInvalidTargetError
 
     known_system = get_known_system(
@@ -542,6 +559,23 @@ def apply_completed_resource_mission(
     active_mission.result_payload = result_payload
 
     db.commit()
+
+
+def _get_research_level(
+    db: Session,
+    planet_id: int,
+    research_code: str,
+) -> int:
+    research_state = get_research_by_planet_and_code(
+        db=db,
+        planet_id=planet_id,
+        research_code=research_code,
+    )
+
+    if research_state is None:
+        return 0
+
+    return research_state.level
 
 
 def _to_scout_mission_response(

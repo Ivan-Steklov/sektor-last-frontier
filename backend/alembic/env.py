@@ -13,7 +13,8 @@ import app.research.models  # noqa: F401
 import app.ships.models  # noqa: F401
 import app.expeditions.models  # noqa: F401
 import app.galaxy.models  # noqa: F401
-from app.transport.models import TransportMission
+import app.transport.models  # noqa: F401
+import app.system_storage.models  # noqa: F401
 
 
 config = context.config

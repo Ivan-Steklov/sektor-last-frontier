@@ -158,8 +158,62 @@ def test_completed_metal_research_increases_production(db_session) -> None:
     assert after.metal_per_hour > before.metal_per_hour
 
 
-def test_research_requires_research_center_level(db_session) -> None:
+def test_completed_crystal_research_increases_production(db_session) -> None:
     planet = get_or_create_home_planet(db_session, telegram_id=2006)
+    ensure_buildings(db_session, planet.id)
+    ensure_research(db_session, planet.id)
+    ensure_resource_state(db_session, planet.id)
+
+    before = get_current_resources(db_session, planet.id)
+
+    start_research(
+        db=db_session,
+        planet_id=planet.id,
+        research_code="crystal_mining",
+    )
+
+    queue_item = get_active_queue_item(db_session, planet.id)
+    assert queue_item is not None
+
+    queue_item.finishes_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    db_session.commit()
+
+    apply_completed_research_queue(db_session, planet.id)
+
+    after = get_current_resources(db_session, planet.id)
+
+    assert after.crystal_per_hour > before.crystal_per_hour
+
+
+def test_completed_energy_research_increases_energy_production(db_session) -> None:
+    planet = get_or_create_home_planet(db_session, telegram_id=2007)
+    ensure_buildings(db_session, planet.id)
+    ensure_research(db_session, planet.id)
+    ensure_resource_state(db_session, planet.id)
+
+    before = get_current_resources(db_session, planet.id)
+
+    start_research(
+        db=db_session,
+        planet_id=planet.id,
+        research_code="energy",
+    )
+
+    queue_item = get_active_queue_item(db_session, planet.id)
+    assert queue_item is not None
+
+    queue_item.finishes_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    db_session.commit()
+
+    apply_completed_research_queue(db_session, planet.id)
+
+    after = get_current_resources(db_session, planet.id)
+
+    assert after.energy_produced > before.energy_produced
+
+
+def test_research_requires_research_center_level(db_session) -> None:
+    planet = get_or_create_home_planet(db_session, telegram_id=2008)
     ensure_buildings(db_session, planet.id)
     ensure_research(db_session, planet.id)
     ensure_resource_state(db_session, planet.id)

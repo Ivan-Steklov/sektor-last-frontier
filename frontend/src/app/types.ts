@@ -55,4 +55,5 @@ export type AppTab =
   | "fleet"
   | "research"
   | "galaxy"
+  | "missions"
   | "alliance";

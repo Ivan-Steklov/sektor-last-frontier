@@ -362,3 +362,170 @@ POST /api/research/{code}/upgrade теперь возвращает точную
 недостаточный уровень исследовательского центра;
 невыполненные prerequisite-исследования/здания;
 достижение максимального уровня.
+- Implemented a real gameplay effect for `flight_range` research in galaxy missions.
+- Galaxy scout and resource mission max distance is no longer a fixed constant only.
+- Backend now calculates allowed mission distance from `flight_range` level:
+  - base distance: 5
+  - +2 distance per `flight_range` level
+- Added backend test coverage for scout mission range gating with and without `flight_range`.
+- Galaxy sector overview now supports radius 9, allowing the UI to show systems beyond current flight range.
+- Frontend marks unreachable systems and shows required `flight_range` level.
+- Mission validation remains backend-authoritative via `flight_range`.
+- Research effect texts were updated to match real implemented gameplay effects:
+  - `engines` now honestly says it reduces expedition duration;
+  - `recon` now honestly says it improves expedition outcomes;
+  - `cargo` now honestly says it increases expedition resource finds;
+  - `flight_range` now honestly says it adds +2 max galaxy mission distance per level.
+- Fixed corrupted Russian text in the `cargo` research description.
+### Expeditions UI: research modifiers
+
+Completed and manually verified.
+
+The Expeditions panel is reachable through the Fleet screen:
+
+- Top navigation: `Флот`
+- Screen: `FleetScreen`
+- Component: `ExpeditionsPanel`
+
+The panel now loads `/api/research/current` and displays current expedition-related research effects:
+
+- `engines` reduces expedition duration.
+- `recon` changes outcome chances and reduces loss risk.
+- `cargo` increases metal/crystal reward multiplier.
+
+Manual verification:
+
+- `engines` level 2 displayed duration `0:54`.
+- `recon` level 1 displayed loss risk `17%`.
+- `cargo` level 0 displayed multiplier `x1.00`.
+
+Frontend values are player-facing hints only. Backend remains authoritative for mission duration, outcomes, and rewards.
+## Missions Hub: экспедиции и транспортировка ресурсов
+
+### Что добавлено
+
+- Введён единый центр миссий через API:
+  - `POST /api/missions/start`
+  - `GET /api/missions/current?telegram_id=1`
+
+- Единый Missions Hub теперь агрегирует активные миссии из нескольких подсистем:
+  - разведка систем;
+  - сбор ресурсов;
+  - экспедиции;
+  - транспортировка ресурсов.
+
+- Запуск экспедиции переведён на общий endpoint:
+  - `POST /api/missions/start`
+  - payload type: `expedition`
+
+- Запуск транспортировки ресурсов добавлен в общий endpoint:
+  - `POST /api/missions/start`
+  - payload type: `transport`
+
+- Старые subsystem endpoints сохранены для совместимости:
+  - `/api/expeditions/start`
+  - `/api/expeditions/current`
+  - `/api/galaxy/scout/start`
+  - `/api/galaxy/resource-mission/start`
+
+### Экспедиции
+
+Экспедиция — это миссия без конкретной системы-цели. Игрок отправляет выбранные корабли в дальний полёт ради случайного результата.
+
+Возможные результаты:
+- ничего не найдено;
+- найден металл;
+- найдены кристаллы;
+- часть кораблей потеряна.
+
+Исследования влияют на экспедиции:
+- `engines` сокращает время экспедиции;
+- `recon` снижает риск потерь;
+- `cargo` увеличивает объём найденных ресурсов.
+
+Длительность экспедиции стабилизирована:
+- базовая длительность: 600 секунд;
+- минимальная длительность: 300 секунд.
+
+Это сделано, чтобы экспедиция успевала отображаться в Missions Hub как активная миссия.
+
+### Транспортировка ресурсов
+
+Транспортировка ресурсов — это логистическая миссия доставки металла и кристаллов в разведанную систему.
+
+При запуске транспортировки:
+- проверяется доступность цели;
+- списываются ресурсы;
+- временно занимается транспортный корабль;
+- миссия появляется в Missions Hub как активная transport mission.
+
+После завершения:
+- транспортный корабль возвращается;
+- миссия больше не отображается как активная.
+
+Текущая транспортировка является фундаментом будущей логистики:
+- складов в системах;
+- колоний;
+- торговли;
+- снабжения аванпостов;
+- поддержки дальних операций.
+
+### Frontend
+
+Экран миссий обновлён под новый формат ответа backend.
+
+Раньше UI ожидал:
+
+```json
+{
+  "active_missions": [],
+  "completed_missions": []
+}Теперь UI использует unified response:
+
+json
+{
+  "items": []
+}Активные и завершённые миссии разделяются на frontend по полю status.
+
+Карточки Missions Hub теперь отображают:
+
+источник миссии;
+тип миссии;
+статус;
+время старта;
+время завершения;
+детали миссии.
+Для экспедиции отображается:
+
+оставшееся время;
+отправленные корабли.
+Для транспортировки отображается:
+
+целевая галактика;
+целевая система;
+металл;
+кристалл;
+количество задействованных транспортников.
+Текущий статус
+Работает end-to-end:
+
+экспедиция запускается через unified missions API;
+экспедиция отображается в Missions Hub;
+транспортировка запускается через unified missions API;
+транспортировка отображается в Missions Hub;
+транспортировка по завершении возвращает транспортный корабль;
+backend остаётся source of truth.
+Известные ограничения
+Транспортировка ресурсов пока не создаёт отдельный склад или принимающий объект в целевой системе.
+Завершённые transport missions пока не оформлены как полноценные последние результаты для игрока.
+В некоторых старых backend-файлах остаются повреждённые русские строки, которые нужно отдельно привести к UTF-8.
+yaml
+
+---
+
+# 2. Commit message
+
+Можно использовать такой commit:
+
+```text
+feat(missions): show expeditions and transport in unified hub

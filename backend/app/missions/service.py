@@ -21,7 +21,9 @@ from app.missions.schemas import (
 from app.planets.repository import get_planet_by_user_id, get_user_by_telegram_id
 from app.planets.service import get_or_create_home_planet
 from app.transport.service import (
+    get_completed_transport_missions,
     get_current_transport_missions,
+    get_transport_cargo_capacity,
     start_transport_mission,
 )
 
@@ -37,16 +39,57 @@ class MissionStartNotImplementedError(Exception):
 def _normalize_datetime(value: datetime | None) -> datetime | None:
     if value is None:
         return None
+
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
+
     return value
 
 
 def _datetime_sort_key(value: datetime | None) -> datetime:
     normalized = _normalize_datetime(value)
+
     if normalized is None:
         return datetime.min.replace(tzinfo=UTC)
+
     return normalized
+
+
+def _transport_mission_to_item(
+    mission,
+    status: str,
+) -> MissionItemResponse:
+    title = (
+        "Доставка завершена"
+        if status == "completed"
+        else "Транспортировка ресурсов"
+    )
+
+    heavy_transport_count = mission.heavy_transport_count
+    cargo_capacity = get_transport_cargo_capacity(
+        transport_count=mission.transport_count,
+        heavy_transport_count=heavy_transport_count,
+    )
+
+    return MissionItemResponse(
+        source="transport",
+        type="transport",
+        status=status,
+        title=title,
+        started_at=mission.started_at,
+        finishes_at=mission.finishes_at,
+        completed_at=mission.completed_at,
+        details={
+            "target_galaxy": mission.target_galaxy,
+            "target_system": mission.target_system,
+            "metal": mission.metal,
+            "crystal": mission.crystal,
+            "transport_count": mission.transport_count,
+            "heavy_transport_count": heavy_transport_count,
+            "cargo_amount": mission.metal + mission.crystal,
+            "cargo_capacity": cargo_capacity,
+        },
+    )
 
 
 def get_current_missions_state(
@@ -115,34 +158,37 @@ def get_current_missions_state(
                 completed_at=None,
                 details={
                     "remaining_seconds": expedition_state.active_expedition.remaining_seconds,
-                    "sent_ships": dict(expedition_state.active_expedition.sent_ships or {}),
+                    "sent_ships": dict(
+                        expedition_state.active_expedition.sent_ships or {}
+                    ),
                 },
             )
         )
 
-    transport_missions = get_current_transport_missions(db, telegram_id)
-    for mission in transport_missions:
+    active_transport_missions = get_current_transport_missions(db, telegram_id)
+    for mission in active_transport_missions:
         items.append(
-            MissionItemResponse(
-                source="transport",
-                type="transport",
-                status=mission.status,
-                title="Транспортировка ресурсов",
-                started_at=mission.started_at,
-                finishes_at=mission.finishes_at,
-                completed_at=mission.completed_at,
-                details={
-                    "target_galaxy": mission.target_galaxy,
-                    "target_system": mission.target_system,
-                    "metal": mission.metal,
-                    "crystal": mission.crystal,
-                    "transport_count": mission.transport_count,
-                },
+            _transport_mission_to_item(
+                mission=mission,
+                status="active",
+            )
+        )
+
+    completed_transport_missions = get_completed_transport_missions(
+        db=db,
+        telegram_id=telegram_id,
+        limit=5,
+    )
+    for mission in completed_transport_missions:
+        items.append(
+            _transport_mission_to_item(
+                mission=mission,
+                status="completed",
             )
         )
 
     items.sort(
-        key=lambda item: _datetime_sort_key(item.started_at),
+        key=lambda item: _datetime_sort_key(item.completed_at or item.started_at),
         reverse=True,
     )
 
@@ -204,6 +250,13 @@ def start_mission(
         if payload.target_galaxy is None or payload.target_system is None:
             raise MissionStartPayloadError
 
+        transport_count = 1
+        heavy_transport_count = 0
+
+        if payload.ships is not None:
+            transport_count = payload.ships.transport
+            heavy_transport_count = payload.ships.heavy_transport
+
         return start_transport_mission(
             db,
             telegram_id=payload.telegram_id,
@@ -211,6 +264,8 @@ def start_mission(
             target_system=payload.target_system,
             metal=payload.metal or 0,
             crystal=payload.crystal or 0,
+            transport_count=transport_count,
+            heavy_transport_count=heavy_transport_count,
         )
 
     if payload.type == "attack":

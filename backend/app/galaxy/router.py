@@ -38,7 +38,7 @@ router = APIRouter(
 )
 def read_galaxy_sector(
     telegram_id: int = 1,
-    radius: int = Query(default=3, ge=1, le=5),
+    radius: int = Query(default=3, ge=1, le=9),
     db: Session = Depends(get_db),
 ) -> GalaxySectorResponse:
     return get_galaxy_sector(

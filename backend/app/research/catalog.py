@@ -1,4 +1,27 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Literal
+
+
+ResearchBranch = Literal[
+    "economy",
+    "fleet",
+    "expedition",
+    "galaxy",
+    "defense",
+]
+
+ResearchRequirementType = Literal[
+    "building",
+    "research",
+]
+
+
+@dataclass(frozen=True)
+class ResearchRequirementDefinition:
+    type: ResearchRequirementType
+    code: str
+    level: int
+    label: str
 
 
 @dataclass(frozen=True)
@@ -7,68 +30,170 @@ class ResearchDefinition:
     name: str
     description: str
     effect: str
+    branch: ResearchBranch
+    max_level: int
+    requirements: tuple[ResearchRequirementDefinition, ...] = field(
+        default_factory=tuple,
+    )
 
 
 RESEARCH: tuple[ResearchDefinition, ...] = (
     ResearchDefinition(
         code="metal_mining",
         name="Добыча металла",
-        description="Улучшает работу шахт металла.",
+        description="Улучшает работу шахт металла и усиливает экономическую базу колонии.",
         effect="Плюс 8% к добыче металла за уровень.",
+        branch="economy",
+        max_level=20,
+        requirements=(),
     ),
     ResearchDefinition(
         code="crystal_mining",
         name="Добыча кристалла",
-        description="Улучшает работу шахт кристалла.",
+        description="Оптимизирует процессы извлечения и переработки кристалла.",
         effect="Плюс 8% к добыче кристалла за уровень.",
+        branch="economy",
+        max_level=20,
+        requirements=(),
     ),
     ResearchDefinition(
         code="energy",
         name="Энергетика",
-        description="Повышает отдачу электростанции.",
+        description="Повышает эффективность энергетических систем и общую стабильность снабжения.",
         effect="Плюс 8% к выработке энергии за уровень.",
+        branch="economy",
+        max_level=20,
+        requirements=(),
     ),
     ResearchDefinition(
         code="armor",
         name="Броня",
-        description="Усиливает корпус кораблей и обороны.",
-        effect="Подключится вместе с флотом.",
+        description="Усиливает корпуса кораблей и повышает их устойчивость к повреждениям.",
+        effect="Подключится вместе с расширением боевой системы флота.",
+        branch="defense",
+        max_level=20,
+        requirements=(
+            ResearchRequirementDefinition(
+                type="building",
+                code="research_center",
+                level=2,
+                label="Исследовательский центр ур. 2",
+            ),
+        ),
     ),
     ResearchDefinition(
         code="weapons",
         name="Оружие",
-        description="Увеличивает огневую мощь.",
-        effect="Подключится вместе с флотом.",
+        description="Улучшает наступательные системы и повышает боевую эффективность флота.",
+        effect="Подключится вместе с расширением боевой системы флота.",
+        branch="fleet",
+        max_level=20,
+        requirements=(
+            ResearchRequirementDefinition(
+                type="building",
+                code="research_center",
+                level=2,
+                label="Исследовательский центр ур. 2",
+            ),
+            ResearchRequirementDefinition(
+                type="research",
+                code="armor",
+                level=1,
+                label="Броня ур. 1",
+            ),
+        ),
     ),
     ResearchDefinition(
         code="shields",
         name="Щиты",
-        description="Усиливает защиту кораблей и обороны.",
-        effect="Подключится вместе с флотом.",
+        description="Развивает защитные поля и повышает живучесть кораблей в бою.",
+        effect="Подключится вместе с расширением боевой системы флота.",
+        branch="defense",
+        max_level=20,
+        requirements=(
+            ResearchRequirementDefinition(
+                type="building",
+                code="research_center",
+                level=2,
+                label="Исследовательский центр ур. 2",
+            ),
+            ResearchRequirementDefinition(
+                type="research",
+                code="armor",
+                level=1,
+                label="Броня ур. 1",
+            ),
+        ),
     ),
     ResearchDefinition(
         code="engines",
         name="Двигатели",
-        description="Ускоряет полёты флота.",
-        effect="Подключится вместе с флотом.",
+        description="Повышает качество двигательных систем и ускоряет полёты флота.",
+        effect="Сокращает длительность экспедиций за уровень.",
+        branch="fleet",
+        max_level=20,
+        requirements=(
+            ResearchRequirementDefinition(
+                type="building",
+                code="research_center",
+                level=2,
+                label="Исследовательский центр ур. 2",
+            ),
+        ),
     ),
     ResearchDefinition(
         code="recon",
         name="Разведка",
-        description="Даёт больше сведений об экспедициях и целях.",
-        effect="Подключится вместе с экспедициями.",
+        description="Повышает качество разведданных по экспедициям, целям и удалённым зонам.",
+        effect="Повышает шанс успешных исходов экспедиций за уровень.",
+        branch="galaxy",
+        max_level=20,
+        requirements=(
+            ResearchRequirementDefinition(
+                type="research",
+                code="engines",
+                level=1,
+                label="Двигатели ур. 1",
+            ),
+        ),
     ),
     ResearchDefinition(
         code="cargo",
         name="Грузовые отсеки",
-        description="Увеличивает вместимость транспорта.",
-        effect="Подключится вместе с флотом.",
+        description="Увеличивает полезный объём транспорта и улучшает логистику миссий.",
+        effect="Увеличивает количество металла и кристалла, найденных в экспедициях.",
+        branch="expedition",
+        max_level=20,
+        requirements=(
+            ResearchRequirementDefinition(
+                type="research",
+                code="engines",
+                level=1,
+                label="Двигатели ур. 1",
+            ),
+        ),
     ),
     ResearchDefinition(
         code="flight_range",
         name="Дальность полёта",
-        description="Позволяет отправлять флот дальше.",
-        effect="Подключится вместе с флотом.",
+        description="Совершенствует навигацию и позволяет увереннее работать на дальних маршрутах.",
+        effect="Плюс 2 к максимальной дальности галактических миссий за уровень.",
+        branch="galaxy",
+        max_level=20,
+        requirements=(
+            ResearchRequirementDefinition(
+                type="research",
+                code="engines",
+                level=2,
+                label="Двигатели ур. 2",
+            ),
+            ResearchRequirementDefinition(
+                type="research",
+                code="recon",
+                level=1,
+                label="Разведка ур. 1",
+            ),
+        ),
     ),
 )
 

@@ -28,6 +28,7 @@ from app.transport.service import (
     InvalidTransportPayloadError,
     NotEnoughResourcesForTransportError,
     NotEnoughTransportShipsError,
+    TransportCargoCapacityExceededError,
     TransportMissionBusyError,
     TransportMissionInvalidTargetError,
     TransportMissionTargetNotScoutedError,
@@ -81,8 +82,10 @@ def start_mission_route(
         raise HTTPException(status_code=400, detail="Недопустимая цель транспортировки.")
     except TransportMissionTargetNotScoutedError:
         raise HTTPException(status_code=400, detail="Сначала нужно разведать систему для транспортировки.")
+    except TransportCargoCapacityExceededError:
+        raise HTTPException(status_code=400, detail="Груз превышает грузоподъёмность выбранного транспорта.")
     except NotEnoughTransportShipsError:
-        raise HTTPException(status_code=400, detail="Для транспортировки нужен хотя бы один транспорт.")
+        raise HTTPException(status_code=400, detail="Недостаточно транспортных кораблей.")
     except NotEnoughResourcesForTransportError:
         raise HTTPException(status_code=400, detail="Недостаточно ресурсов для транспортировки.")
     except InvalidTransportPayloadError:

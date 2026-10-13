@@ -17,6 +17,13 @@
   margin: 0;
 }
 
+.research-subtitle {
+  margin: 10px 0 0;
+  max-width: 720px;
+  color: #aab7c9;
+  line-height: 1.5;
+}
+
 .research-queue,
 .research-error {
   margin-bottom: 16px;
@@ -33,6 +40,42 @@
 
 .research-error {
   color: #ffb4b4;
+}
+
+.research-branches {
+  display: grid;
+  gap: 20px;
+}
+
+.research-branch {
+  display: grid;
+  gap: 14px;
+}
+
+.research-branch-header {
+  display: grid;
+  gap: 8px;
+  padding: 18px 20px;
+  border: 1px solid #2b3748;
+  background: linear-gradient(180deg, #182230 0%, #141c27 100%);
+}
+
+.research-branch-label {
+  margin: 0 0 6px;
+  color: #7d8da3;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.research-branch-header h3 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.research-branch-description {
+  margin: 0;
+  color: #aab7c9;
+  line-height: 1.5;
 }
 
 .research-grid {
@@ -55,12 +98,12 @@
   gap: 16px;
 }
 
-.research-item h3,
+.research-item h4,
 .research-item p {
   margin: 0;
 }
 
-.research-item h3 {
+.research-item h4 {
   margin-bottom: 6px;
   font-size: 19px;
 }
@@ -68,13 +111,58 @@
 .research-item p,
 .research-effect,
 .research-cost,
-.research-requirement {
+.research-requirement,
+.research-levels span,
+.research-prerequisites-title,
+.research-prerequisite,
+.research-blocked-title,
+.research-blocked-item {
   color: #aab7c9;
   line-height: 1.5;
 }
 
+.research-levels {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.research-prerequisites,
+.research-blocked {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid #263344;
+  background: #111924;
+}
+
+.research-prerequisites-title,
+.research-blocked-title {
+  font-weight: 600;
+}
+
+.research-prerequisites-list,
+.research-blocked-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.research-prerequisite-met {
+  color: #8fd7a7;
+}
+
+.research-prerequisite-unmet,
+.research-blocked-item,
 .research-requirement-warning {
   color: #ffb4b4;
+}
+
+.research-max-level {
+  color: #8fd7a7;
 }
 
 .research-button {
@@ -96,5 +184,17 @@
 @media (max-width: 700px) {
   .research-grid {
     grid-template-columns: 1fr;
+  }
+
+  .research-item-header {
+    flex-direction: column;
+  }
+
+  .research-levels {
+    justify-items: start;
+  }
+
+  .research-queue {
+    flex-direction: column;
   }
 }

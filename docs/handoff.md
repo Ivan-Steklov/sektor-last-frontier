@@ -375,3 +375,58 @@ start_research() формирует точные причины отказа в�
 Требуется исследовательский центр ур. 2.
 Требуется Двигатели ур. 2, Разведка ур. 1.
 Достигнут максимальный уровень.
+`flight_range` is now a real backend gameplay effect for galaxy missions. Scout and resource mission range validation uses research level instead of a fixed hard cap only.
+
+Current rule:
+- base max distance = 5
+- each `flight_range` level adds +2 distance
+
+This is backend-authoritative and already covered by scout mission tests.
+
+Next recommended slice:
+1. add resource mission tests for the same range behavior; and/or
+2. expose reachable/unreachable systems more clearly in frontend galaxy UI using backend-driven rules/error messages.
+- Galaxy sector overview now supports radius 9, allowing the UI to show systems beyond current flight range.
+- Frontend marks unreachable systems and shows required `flight_range` level.
+- Mission validation remains backend-authoritative via `flight_range`.
+- Research catalog effect text is now aligned with implemented effects for `engines`, `recon`, `cargo`, and `flight_range`.
+- Combat research texts (`armor`, `weapons`, `shields`) remain future-facing because combat effects are not implemented yet.
+### Latest completed slice: Expedition research modifiers in UI
+
+The expedition UI slice is complete and verified.
+
+Important files:
+
+- `frontend/src/expeditions/ExpeditionsPanel.tsx`
+- `frontend/src/expeditions/ExpeditionsPanel.css`
+- `frontend/src/screens/FleetScreen.tsx`
+- `backend/app/expeditions/rules.py`
+- `backend/app/expeditions/router.py`
+
+Navigation:
+
+- Expeditions are not a separate top-level tab.
+- They are shown inside the `Флот` tab through `FleetScreen`.
+
+Verified behavior:
+
+- The panel loads `/api/research/current`.
+- `engines`, `recon`, and `cargo` levels are shown.
+- Mirrored frontend formulas match backend rules:
+  - base expedition duration: 60 seconds;
+  - engines: `-5%` duration per level, minimum 30 seconds;
+  - recon: reduces loss chance by `3%` per level where possible, redistributed to metal/crystal;
+  - cargo: `1 + cargo_level * 0.10`.
+
+Manual check result:
+
+- `engines` level 2 → `0:54`
+- `recon` level 1 → loss risk `17%`
+- `cargo` level 0 → `x1.00`
+
+Backend remains the source of truth for queue state, expedition duration, random outcome, and rewards.
+- Add unified mission visibility for expeditions and transport
+- Update MissionsPanel to consume /api/missions/current items response
+- Stabilize expedition duration for player-visible active state
+- Keep legacy expedition and galaxy mission endpoints alive
+- Verify transport start and lazy completion flow
