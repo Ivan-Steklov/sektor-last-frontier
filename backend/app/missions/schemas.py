@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 MissionType = Literal["scout", "harvest", "expedition", "attack", "transport"]
@@ -9,10 +9,14 @@ MissionStatus = Literal["active", "completed"]
 
 
 class ExpeditionFleetRequest(BaseModel):
-    scout: int = 0
-    transport: int = 0
-    fighter: int = 0
-    heavy_transport: int = 0
+    # scout оставлен для совместимости старых клиентов,
+    # но новая экспедиционная логика его не использует.
+    scout: int = Field(default=0, ge=0)
+
+    transport: int = Field(default=0, ge=0)
+    heavy_transport: int = Field(default=0, ge=0)
+    fighter: int = Field(default=0, ge=0)
+    corvette: int = Field(default=0, ge=0)
 
 
 class StartMissionRequest(BaseModel):

@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
+from app.expeditions.repository import get_last_completed_by_planet_id
 from app.expeditions.schemas import ExpeditionFleetPayload
 from app.expeditions.service import (
     get_current_expedition_state,
@@ -54,6 +55,30 @@ def _datetime_sort_key(value: datetime | None) -> datetime:
 
     return normalized
 
+def _expedition_result_to_item(
+    mission,
+) -> MissionItemResponse:
+    result_payload = (
+        mission.result_payload
+        if isinstance(mission.result_payload, dict)
+        else {}
+    )
+
+    details = {
+        "sent_ships": dict(mission.sent_ships or {}),
+    }
+    details.update(result_payload)
+
+    return MissionItemResponse(
+        source="expedition",
+        type="expedition",
+        status="completed",
+        title="\u042d\u043a\u0441\u043f\u0435\u0434\u0438\u0446\u0438\u044f \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u0430",
+        started_at=mission.started_at,
+        finishes_at=mission.finishes_at,
+        completed_at=mission.completed_at,
+        details=details,
+    )
 
 def _transport_mission_to_item(
     mission,
@@ -161,8 +186,22 @@ def get_current_missions_state(
                     "sent_ships": dict(
                         expedition_state.active_expedition.sent_ships or {}
                     ),
+                    "cargo_capacity": expedition_state.active_expedition.cargo_capacity,
+                    "attack_power": expedition_state.active_expedition.attack_power,
+                    "defense_power": expedition_state.active_expedition.defense_power,
                 },
             )
+        )
+    last_completed_expedition = get_last_completed_by_planet_id(
+        db,
+        home_planet.id,
+    )
+    if (
+        last_completed_expedition is not None
+        and last_completed_expedition.result_payload is not None
+    ):
+        items.append(
+            _expedition_result_to_item(last_completed_expedition)
         )
 
     active_transport_missions = get_current_transport_missions(db, telegram_id)
@@ -214,7 +253,9 @@ def start_mission(
         fleet = ExpeditionFleetPayload(
             scout=payload.ships.scout,
             transport=payload.ships.transport,
+            heavy_transport=payload.ships.heavy_transport,
             fighter=payload.ships.fighter,
+            corvette=payload.ships.corvette,
         )
 
         start_expedition(

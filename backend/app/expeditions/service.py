@@ -10,14 +10,18 @@ from app.expeditions.repository import (
     get_last_completed_by_planet_id,
 )
 from app.expeditions.rules import (
+    EXPEDITION_SHIP_CODES,
+    expedition_attack_power,
+    expedition_cargo_capacity,
+    expedition_defense_power,
     expedition_duration_seconds,
     roll_expedition_result,
 )
 from app.expeditions.schemas import (
+    ExpeditionFleetPayload,
     ExpeditionQueueResponse,
     ExpeditionResponse,
     ExpeditionResultPayload,
-    ExpeditionFleetPayload,
 )
 from app.research.repository import get_by_planet_and_code as get_research_by_planet_and_code
 from app.resources.repository import get_by_planet_id as get_resource_by_planet_id
@@ -70,15 +74,19 @@ def start_expedition(
         raise ExpeditionBusyError
 
     sent_ships = {
-        "scout": fleet.scout,
         "transport": fleet.transport,
+        "heavy_transport": fleet.heavy_transport,
         "fighter": fleet.fighter,
+        "corvette": fleet.corvette,
     }
 
     if sum(sent_ships.values()) <= 0:
         raise InvalidExpeditionFleetError
 
     for ship_code, quantity in sent_ships.items():
+        if quantity <= 0:
+            continue
+
         ship_state = get_by_planet_and_code(
             db,
             planet_id,
@@ -90,6 +98,9 @@ def start_expedition(
             raise NotEnoughShipsError
 
     for ship_code, quantity in sent_ships.items():
+        if quantity <= 0:
+            continue
+
         ship_state = get_by_planet_and_code(
             db,
             planet_id,
@@ -161,13 +172,18 @@ def apply_completed_expedition(
         "cargo",
     )
 
+    sent_ships = _normalize_sent_ships(active_item.sent_ships or {})
+
     result_payload = roll_expedition_result(
-        active_item.sent_ships,
+        sent_ships,
         recon_level=recon_level,
         cargo_level=cargo_level,
     )
 
     for ship_code, returned_quantity in result_payload["returned_ships"].items():
+        if returned_quantity <= 0:
+            continue
+
         ship_state = get_by_planet_and_code(
             db,
             planet_id,
@@ -218,13 +234,34 @@ def _to_queue_response(
         int((finishes_at - now).total_seconds()),
     )
 
+    sent_ships = _normalize_sent_ships(item.sent_ships or {})
+
     return ExpeditionQueueResponse(
         id=item.id,
         started_at=item.started_at,
         finishes_at=item.finishes_at,
         remaining_seconds=remaining_seconds,
-        sent_ships=item.sent_ships,
+        sent_ships=sent_ships,
+        cargo_capacity=expedition_cargo_capacity(sent_ships),
+        attack_power=expedition_attack_power(sent_ships),
+        defense_power=expedition_defense_power(sent_ships),
     )
+
+
+def _normalize_sent_ships(
+    sent_ships: dict,
+) -> dict[str, int]:
+    normalized: dict[str, int] = {}
+
+    for ship_code in EXPEDITION_SHIP_CODES:
+        value = sent_ships.get(ship_code, 0)
+
+        if not isinstance(value, int):
+            value = 0
+
+        normalized[ship_code] = max(0, value)
+
+    return normalized
 
 
 def _as_utc(value):
