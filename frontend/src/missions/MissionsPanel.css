@@ -1456,3 +1456,194 @@
     gap: 4px;
   }
 }
+.expedition-result-card-empty {
+  border-left: 4px solid rgba(148, 163, 184, 0.65);
+}
+
+.expedition-result-card-metal {
+  border-left: 4px solid rgba(203, 213, 225, 0.9);
+}
+
+.expedition-result-card-crystal {
+  border-left: 4px solid rgba(56, 189, 248, 0.9);
+}
+
+.expedition-result-card-rare_find {
+  border-left: 4px solid rgba(250, 204, 21, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(250, 204, 21, 0.16),
+    0 18px 44px rgba(250, 204, 21, 0.08);
+}
+
+.expedition-result-card-pirates {
+  border-left: 4px solid rgba(248, 113, 113, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(248, 113, 113, 0.12),
+    0 18px 44px rgba(127, 29, 29, 0.12);
+}
+
+.expedition-result-card-anomaly {
+  border-left: 4px solid rgba(168, 85, 247, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(168, 85, 247, 0.14),
+    0 18px 44px rgba(88, 28, 135, 0.12);
+}
+
+.expedition-result-card-ship_damage {
+  border-left: 4px solid rgba(251, 146, 60, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(251, 146, 60, 0.14),
+    0 18px 44px rgba(154, 52, 18, 0.1);
+}
+
+.expedition-result-card-loss {
+  border-left: 4px solid rgba(239, 68, 68, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(239, 68, 68, 0.16),
+    0 18px 44px rgba(127, 29, 29, 0.16);
+}
+
+.expedition-result-card-unknown {
+  border-left: 4px solid rgba(148, 163, 184, 0.65);
+}
+
+.expedition-result-badge-empty {
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.14);
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.expedition-result-badge-metal {
+  color: #e2e8f0;
+  background: linear-gradient(
+    135deg,
+    rgba(100, 116, 139, 0.32),
+    rgba(203, 213, 225, 0.14)
+  );
+  border-color: rgba(203, 213, 225, 0.35);
+}
+
+.expedition-result-badge-crystal {
+  color: #bae6fd;
+  background: linear-gradient(
+    135deg,
+    rgba(14, 165, 233, 0.32),
+    rgba(125, 211, 252, 0.13)
+  );
+  border-color: rgba(125, 211, 252, 0.4);
+}
+
+.expedition-result-badge-rare_find {
+  color: #fef3c7;
+  background: linear-gradient(
+    135deg,
+    rgba(202, 138, 4, 0.5),
+    rgba(250, 204, 21, 0.18)
+  );
+  border-color: rgba(250, 204, 21, 0.5);
+  box-shadow: 0 0 18px rgba(250, 204, 21, 0.16);
+}
+
+.expedition-result-badge-pirates {
+  color: #fecaca;
+  background: linear-gradient(
+    135deg,
+    rgba(185, 28, 28, 0.48),
+    rgba(248, 113, 113, 0.16)
+  );
+  border-color: rgba(248, 113, 113, 0.42);
+}
+
+.expedition-result-badge-anomaly {
+  color: #e9d5ff;
+  background: linear-gradient(
+    135deg,
+    rgba(126, 34, 206, 0.5),
+    rgba(216, 180, 254, 0.16)
+  );
+  border-color: rgba(216, 180, 254, 0.42);
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.14);
+}
+
+.expedition-result-badge-ship_damage {
+  color: #fed7aa;
+  background: linear-gradient(
+    135deg,
+    rgba(194, 65, 12, 0.48),
+    rgba(251, 146, 60, 0.16)
+  );
+  border-color: rgba(251, 146, 60, 0.42);
+}
+
+.expedition-result-badge-loss {
+  color: #fee2e2;
+  background: linear-gradient(
+    135deg,
+    rgba(153, 27, 27, 0.58),
+    rgba(239, 68, 68, 0.18)
+  );
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.expedition-result-badge-unknown {
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.14);
+  border-color: rgba(148, 163, 184, 0.28);
+}
+.expedition-result-severity-badge {
+  min-width: max-content;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+.expedition-result-severity-bonus {
+  color: #fef3c7;
+  background: linear-gradient(
+    135deg,
+    rgba(202, 138, 4, 0.56),
+    rgba(250, 204, 21, 0.18)
+  );
+  border-color: rgba(250, 204, 21, 0.52);
+}
+
+.expedition-result-severity-low {
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.14);
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.expedition-result-severity-medium {
+  color: #fde68a;
+  background: linear-gradient(
+    135deg,
+    rgba(180, 83, 9, 0.42),
+    rgba(245, 158, 11, 0.14)
+  );
+  border-color: rgba(245, 158, 11, 0.36);
+}
+
+.expedition-result-severity-high {
+  color: #fed7aa;
+  background: linear-gradient(
+    135deg,
+    rgba(194, 65, 12, 0.5),
+    rgba(251, 146, 60, 0.16)
+  );
+  border-color: rgba(251, 146, 60, 0.42);
+}
+
+.expedition-result-severity-critical {
+  color: #fee2e2;
+  background: linear-gradient(
+    135deg,
+    rgba(153, 27, 27, 0.6),
+    rgba(239, 68, 68, 0.2)
+  );
+  border-color: rgba(239, 68, 68, 0.52);
+}
+
+.expedition-result-severity-unknown {
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.14);
+  border-color: rgba(148, 163, 184, 0.28);
+}

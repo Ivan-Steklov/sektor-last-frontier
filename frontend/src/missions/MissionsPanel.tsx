@@ -1,115 +1,40 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  CompletedExpeditionResult,
+  CompletedTransportResult,
+} from "./MissionResultCards";
+import {
+  calculateFleetStat,
+  clampFleetToAvailable,
+  formatDuration,
+  formatExpeditionFleet,
+  formatNumber,
+  formatShips,
+  formatTransportFleet,
+  getNumberDetail,
+  isFleetShipCode,
+  isRecord,
+} from "./missionHelpers";
 import "./MissionsPanel.css";
+import type {
+  FleetForm,
+  GalaxySectorResponse,
+  GalaxySectorSystemItem,
+  MissionDetails,
+  MissionItem,
+  MissionsStateResponse,
+  MissionStatus,
+  MissionType,
+  ResourceStateResponse,
+  ShipsResponse,
+  ShipStats,
+  SystemStorageItem,
+  SystemStorageStateResponse,
+  TransportFleetForm,
+  TransportForm,
+} from "./types";
 
 const TELEGRAM_ID = 1;
-
-type MissionStatus = "active" | "completed" | string;
-type MissionType =
-  | "scout"
-  | "harvest"
-  | "expedition"
-  | "attack"
-  | "transport"
-  | string;
-
-type MissionDetails = Record<string, unknown>;
-
-interface MissionItem {
-  source: string;
-  type: MissionType;
-  status: MissionStatus;
-  title: string;
-  started_at?: string | null;
-  finishes_at?: string | null;
-  completed_at?: string | null;
-  details?: MissionDetails | null;
-}
-
-interface MissionsStateResponse {
-  items: MissionItem[];
-}
-
-type ShipsResponse = {
-  ships: {
-    code: string;
-    name: string;
-    quantity: number;
-    attack?: number;
-    defense?: number;
-    cargo_capacity?: number;
-  }[];
-};
-
-type ShipStats = {
-  name: string;
-  attack: number;
-  defense: number;
-  cargo_capacity: number;
-};
-
-interface SystemStorageItem {
-  id: number;
-  galaxy: number;
-  system: number;
-  metal: number;
-  crystal: number;
-  created_at: string;
-  updated_at: string;
-}
-
-interface SystemStorageStateResponse {
-  storages: SystemStorageItem[];
-}
-interface ResourceStateResponse {
-  metal: number;
-  crystal: number;
-  energy: number;
-  population: number;
-  metal_per_hour: number;
-  crystal_per_hour: number;
-  energy_produced: number;
-  energy_consumed: number;
-  energy_efficiency_percent: number;
-  warehouse_capacity: number;
-  calculated_at: string;
-}
-
-interface GalaxySectorSystemItem {
-  galaxy: number;
-  system: number;
-  name: string;
-  distance: number;
-  richness: string;
-  danger: string;
-  danger_level: number;
-  has_home_planet: boolean;
-  is_scouted: boolean;
-}
-
-interface GalaxySectorResponse {
-  current_galaxy: number;
-  current_system: number;
-  current_position: number;
-  systems: GalaxySectorSystemItem[];
-}
-
-type FleetForm = {
-  transport: number;
-  heavy_transport: number;
-  fighter: number;
-  corvette: number;
-};
-
-type TransportForm = {
-  target_galaxy: number;
-  target_system: number;
-  metal: number;
-  crystal: number;
-};
-type TransportFleetForm = {
-  transport: number;
-  heavy_transport: number;
-};
 
 const EMPTY_FLEET: FleetForm = {
   transport: 0,
@@ -140,9 +65,8 @@ export function MissionsPanel() {
 
   const [state, setState] = useState<MissionsStateResponse | null>(null);
   const [systemStorages, setSystemStorages] = useState<SystemStorageItem[]>([]);
-  const [homeResources, setHomeResources] = useState<ResourceStateResponse | null>(
-  null,
-);
+  const [homeResources, setHomeResources] =
+    useState<ResourceStateResponse | null>(null);
   const [knownSystems, setKnownSystems] = useState<GalaxySectorSystemItem[]>(
     [],
   );
@@ -241,9 +165,7 @@ export function MissionsPanel() {
             attack: typeof ship.attack === "number" ? ship.attack : 0,
             defense: typeof ship.defense === "number" ? ship.defense : 0,
             cargo_capacity:
-              typeof ship.cargo_capacity === "number"
-                ? ship.cargo_capacity
-                : 0,
+              typeof ship.cargo_capacity === "number" ? ship.cargo_capacity : 0,
           };
 
           if (isFleetShipCode(ship.code)) {
@@ -252,16 +174,12 @@ export function MissionsPanel() {
 
           if (ship.code === "transport") {
             loadedTransportCargoCapacity =
-              typeof ship.cargo_capacity === "number"
-                ? ship.cargo_capacity
-                : 0;
+              typeof ship.cargo_capacity === "number" ? ship.cargo_capacity : 0;
           }
 
           if (ship.code === "heavy_transport") {
             loadedHeavyTransportCargoCapacity =
-              typeof ship.cargo_capacity === "number"
-                ? ship.cargo_capacity
-                : 0;
+              typeof ship.cargo_capacity === "number" ? ship.cargo_capacity : 0;
           }
         }
 
@@ -314,6 +232,7 @@ export function MissionsPanel() {
     },
     [apiUrl],
   );
+
   const loadHomeResources = useCallback(
     async (signal?: AbortSignal) => {
       try {
@@ -579,6 +498,7 @@ export function MissionsPanel() {
       [shipCode]: Math.min(parsed, maxValue),
     }));
   }
+
   function updateTransportFleet(
     shipCode: keyof TransportFleetForm,
     value: string,
@@ -614,7 +534,10 @@ export function MissionsPanel() {
       if (field === "metal") {
         return {
           ...current,
-          metal: Math.min(normalizedValue, homeResources?.metal ?? normalizedValue),
+          metal: Math.min(
+            normalizedValue,
+            homeResources?.metal ?? normalizedValue,
+          ),
         };
       }
 
@@ -682,11 +605,8 @@ export function MissionsPanel() {
     transportFleet.transport * transportCargoCapacity +
     transportFleet.heavy_transport * heavyTransportCargoCapacity;
 
-    const selectedExpeditionShips =
-    fleet.transport +
-    fleet.heavy_transport +
-    fleet.fighter +
-    fleet.corvette;
+  const selectedExpeditionShips =
+    fleet.transport + fleet.heavy_transport + fleet.fighter + fleet.corvette;
 
   const selectedExpeditionCargoCapacity = calculateFleetStat(
     fleet,
@@ -808,16 +728,10 @@ export function MissionsPanel() {
             disabled={expeditionStartDisabled}
             onChange={(value) => updateFleet("heavy_transport", value)}
             onDecrease={() =>
-              updateFleet(
-                "heavy_transport",
-                String(fleet.heavy_transport - 1),
-              )
+              updateFleet("heavy_transport", String(fleet.heavy_transport - 1))
             }
             onIncrease={() =>
-              updateFleet(
-                "heavy_transport",
-                String(fleet.heavy_transport + 1),
-              )
+              updateFleet("heavy_transport", String(fleet.heavy_transport + 1))
             }
           />
 
@@ -950,13 +864,13 @@ export function MissionsPanel() {
             </div>
           )}
         </div>
+
         <div className="transport-ships-block">
           <div className="transport-ships-header">
             <div>
               <h4>Корабли для доставки</h4>
               <p>
-                Выбери, сколько обычных и тяжёлых транспортов отправить в
-                рейс.
+                Выбери, сколько обычных и тяжёлых транспортов отправить в рейс.
               </p>
             </div>
 
@@ -1038,6 +952,7 @@ export function MissionsPanel() {
               {formatNumber(selectedTransportCargoCapacity)}
             </div>
           </div>
+
           <div className="transport-cargo-capacity">
             <span>Грузоподъёмность выбранного транспорта</span>
             <strong>{formatNumber(selectedTransportCargoCapacity)}</strong>
@@ -1364,9 +1279,7 @@ function NumberInput({
       {hint && <small className="transport-input-hint">{hint}</small>}
 
       {isOverLimit && (
-        <small className="transport-input-warning">
-          Недостаточно ресурса.
-        </small>
+        <small className="transport-input-warning">Недостаточно ресурса.</small>
       )}
     </label>
   );
@@ -1375,12 +1288,10 @@ function NumberInput({
 function MissionCard({ mission }: { mission: MissionItem }) {
   const isTransportMission = mission.type === "transport";
   const isExpeditionMission = mission.type === "expedition";
-  const isActiveTransport =
-    isTransportMission && mission.status === "active";
+  const isActiveTransport = isTransportMission && mission.status === "active";
   const isCompletedTransport =
     isTransportMission && mission.status === "completed";
-  const isActiveExpedition =
-    isExpeditionMission && mission.status === "active";
+  const isActiveExpedition = isExpeditionMission && mission.status === "active";
   const isCompletedExpedition =
     isExpeditionMission && mission.status === "completed";
 
@@ -1457,6 +1368,7 @@ function MissionCard({ mission }: { mission: MissionItem }) {
     </article>
   );
 }
+
 function TransportMissionPayload({
   details,
 }: {
@@ -1471,7 +1383,8 @@ function TransportMissionPayload({
   const transportCount = getNumberDetail(details, "transport_count") ?? 0;
   const heavyTransportCount =
     getNumberDetail(details, "heavy_transport_count") ?? 0;
-  const cargoAmount = getNumberDetail(details, "cargo_amount") ?? metal + crystal;
+  const cargoAmount =
+    getNumberDetail(details, "cargo_amount") ?? metal + crystal;
   const cargoCapacity = getNumberDetail(details, "cargo_capacity") ?? 0;
 
   return (
@@ -1504,6 +1417,7 @@ function TransportMissionPayload({
     </div>
   );
 }
+
 function ExpeditionMissionPayload({
   details,
 }: {
@@ -1548,150 +1462,6 @@ function ExpeditionMissionPayload({
         <div className="expedition-mission-stat">
           <span>Защита</span>
           <strong>{formatNumber(defensePower)}</strong>
-        </div>
-      </div>
-    </div>
-  );
-}
-function CompletedExpeditionResult({ mission }: { mission: MissionItem }) {
-  const details = mission.details ?? {};
-
-  const outcome =
-    typeof details.outcome === "string" ? details.outcome : "";
-  const description =
-    typeof details.description === "string"
-      ? details.description
-      : "Экспедиция завершена.";
-
-  const metalFound = getNumberDetail(details, "metal_found") ?? 0;
-  const crystalFound = getNumberDetail(details, "crystal_found") ?? 0;
-  const cargoCapacity = getNumberDetail(details, "cargo_capacity") ?? 0;
-  const attackPower = getNumberDetail(details, "attack_power") ?? 0;
-  const defensePower = getNumberDetail(details, "defense_power") ?? 0;
-
-  const sentShipsRaw = details.sent_ships;
-  const returnedShipsRaw = details.returned_ships;
-  const lostShipsRaw = details.lost_ships;
-
-  const sentShips = isRecord(sentShipsRaw) ? sentShipsRaw : {};
-  const returnedShips = isRecord(returnedShipsRaw) ? returnedShipsRaw : {};
-  const lostShips = isRecord(lostShipsRaw) ? lostShipsRaw : {};
-
-  const lostShipsText = formatShips(lostShips);
-  const hasLostShips = lostShipsText !== "Нет кораблей";
-
-  return (
-    <div className="expedition-result-card">
-      <div className="expedition-result-top">
-        <div>
-          <div className="expedition-result-title">
-            {expeditionOutcomeLabel(outcome)}
-          </div>
-          <div className="expedition-result-description">
-            {description}
-          </div>
-        </div>
-
-        <div className="expedition-result-badge">
-          {outcome || "result"}
-        </div>
-      </div>
-
-      <div className="expedition-result-resources">
-        <div className="expedition-result-resource">
-          <span>Найдено металла</span>
-          <strong>{formatNumber(metalFound)}</strong>
-        </div>
-
-        <div className="expedition-result-resource">
-          <span>Найдено кристаллов</span>
-          <strong>{formatNumber(crystalFound)}</strong>
-        </div>
-
-        <div className="expedition-result-resource">
-          <span>Грузоподъёмность</span>
-          <strong>{formatNumber(cargoCapacity)}</strong>
-        </div>
-      </div>
-
-      <div className="expedition-result-fleets">
-        <div className="expedition-result-fleet-row">
-          <span>Отправленный флот</span>
-          <strong>{formatShips(sentShips)}</strong>
-        </div>
-
-        <div className="expedition-result-fleet-row">
-          <span>Вернулось</span>
-          <strong>{formatShips(returnedShips)}</strong>
-        </div>
-
-        <div
-          className={
-            hasLostShips
-              ? "expedition-result-fleet-row expedition-result-losses"
-              : "expedition-result-fleet-row"
-          }
-        >
-          <span>Потери</span>
-          <strong>{hasLostShips ? lostShipsText : "Потерь нет"}</strong>
-        </div>
-      </div>
-
-      <div className="expedition-result-combat">
-        <div className="expedition-result-combat-stat">
-          <span>Атака</span>
-          <strong>{formatNumber(attackPower)}</strong>
-        </div>
-
-        <div className="expedition-result-combat-stat">
-          <span>Защита</span>
-          <strong>{formatNumber(defensePower)}</strong>
-        </div>
-      </div>
-    </div>
-  );
-}
-function CompletedTransportResult({ mission }: { mission: MissionItem }) {
-  const details = mission.details ?? {};
-
-  const metal = getNumberDetail(details, "metal") ?? 0;
-  const crystal = getNumberDetail(details, "crystal") ?? 0;
-  const transportCount = getNumberDetail(details, "transport_count") ?? 0;
-  const heavyTransportCount =
-    getNumberDetail(details, "heavy_transport_count") ?? 0;
-  const cargoAmount = getNumberDetail(details, "cargo_amount") ?? metal + crystal;
-  const cargoCapacity = getNumberDetail(details, "cargo_capacity") ?? 0;
-  const target = formatTarget(mission);
-
-  return (
-    <div className="transport-result-card">
-      <div className="transport-result-text">
-        Груз доставлен на внешний склад системы {target}.
-      </div>
-
-      <div className="transport-result-grid">
-        <div className="transport-result-resource">
-          <span>Металл</span>
-          <strong>{formatNumber(metal)}</strong>
-        </div>
-
-        <div className="transport-result-resource">
-          <span>Кристалл</span>
-          <strong>{formatNumber(crystal)}</strong>
-        </div>
-
-        <div className="transport-result-resource">
-          <span>Груз</span>
-          <strong>
-            {formatNumber(cargoAmount)} / {formatNumber(cargoCapacity)}
-          </strong>
-        </div>
-
-        <div className="transport-result-resource">
-          <span>Корабли</span>
-          <strong>
-            {formatTransportFleet(transportCount, heavyTransportCount)}
-          </strong>
         </div>
       </div>
     </div>
@@ -1810,70 +1580,6 @@ function addDetailRow(
     value: detailValueToText(key, value),
   });
 }
-function getNumberDetail(details: MissionDetails, key: string): number | null {
-  const value = details[key];
-
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return null;
-  }
-
-  return value;
-}
-function formatTransportFleet(
-  transportCount: number,
-  heavyTransportCount: number,
-): string {
-  const parts: string[] = [];
-
-  if (transportCount > 0) {
-    parts.push(
-      `${formatNumber(transportCount)} ${pluralRu(transportCount, [
-        "транспортник",
-        "транспортника",
-        "транспортников",
-      ])}`,
-    );
-  }
-
-  if (heavyTransportCount > 0) {
-    parts.push(
-      `${formatNumber(heavyTransportCount)} ${pluralRu(heavyTransportCount, [
-        "тяжёлый транспорт",
-        "тяжёлых транспорта",
-        "тяжёлых транспортов",
-      ])}`,
-    );
-  }
-
-  if (parts.length === 0) {
-    return "нет транспортных кораблей";
-  }
-
-  return parts.join(" · ");
-}
-
-function pluralRu(
-  value: number,
-  forms: [string, string, string],
-): string {
-  const absoluteValue = Math.abs(Math.floor(value));
-  const lastTwoDigits = absoluteValue % 100;
-  const lastDigit = absoluteValue % 10;
-
-  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) {
-    return forms[2];
-  }
-
-  if (lastDigit === 1) {
-    return forms[0];
-  }
-
-  if (lastDigit >= 2 && lastDigit <= 4) {
-    return forms[1];
-  }
-
-  return forms[2];
-}
 
 function detailValueToText(key: string, value: unknown): string {
   if (key === "remaining_seconds" && typeof value === "number") {
@@ -1965,37 +1671,6 @@ function dangerLabel(value: string): string {
 
   return value;
 }
-function expeditionOutcomeLabel(outcome: string): string {
-  if (outcome === "empty") {
-    return "Пустой сектор";
-  }
-
-  if (outcome === "metal") {
-    return "Обнаружен металл";
-  }
-
-  if (outcome === "crystal") {
-    return "Обнаружены кристаллы";
-  }
-
-  if (outcome === "loss") {
-    return "Экспедиция понесла потери";
-  }
-
-  if (outcome === "pirates") {
-    return "Столкновение с пиратами";
-  }
-
-  if (outcome === "anomaly") {
-    return "Космическая аномалия";
-  }
-
-  if (outcome.trim().length === 0) {
-    return "Итог экспедиции";
-  }
-
-  return outcome;
-}
 
 function missionTypeLabel(type: MissionType): string {
   if (type === "scout") {
@@ -2078,43 +1753,6 @@ function formatDateTime(value: string): string {
 function formatTime(value: Date): string {
   return value.toLocaleTimeString("ru-RU");
 }
-function formatNumber(value: number): string {
-  return value.toLocaleString("ru-RU");
-}
-
-function formatDuration(totalSeconds: number): string {
-  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
-  const minutes = Math.floor(safeSeconds / 60);
-  const seconds = safeSeconds % 60;
-
-  if (minutes <= 0) {
-    return `${seconds} сек.`;
-  }
-
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
-function formatShips(value: Record<string, unknown>): string {
-  const parts: string[] = [];
-
-  for (const [shipCode, quantity] of Object.entries(value)) {
-    if (typeof quantity !== "number" || quantity <= 0) {
-      continue;
-    }
-
-    parts.push(formatShipCount(shipCode, quantity));
-  }
-
-  if (parts.length === 0) {
-    return "Нет кораблей";
-  }
-
-  return parts.join(" · ");
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function missionKey(mission: MissionItem, index: number): string {
   return [
@@ -2124,104 +1762,4 @@ function missionKey(mission: MissionItem, index: number): string {
     mission.started_at ?? "no-start",
     index,
   ].join("-");
-}
-
-function clampFleetToAvailable(
-  fleet: FleetForm,
-  availableShips: FleetForm,
-): FleetForm {
-  return {
-    transport: Math.min(fleet.transport, availableShips.transport),
-    heavy_transport: Math.min(
-      fleet.heavy_transport,
-      availableShips.heavy_transport,
-    ),
-    fighter: Math.min(fleet.fighter, availableShips.fighter),
-    corvette: Math.min(fleet.corvette, availableShips.corvette),
-  };
-}
-
-function isFleetShipCode(code: string): code is keyof FleetForm {
-  return (
-    code === "transport" ||
-    code === "heavy_transport" ||
-    code === "fighter" ||
-    code === "corvette"
-  );
-}
-
-function calculateFleetStat(
-  fleet: FleetForm,
-  shipStats: Record<string, ShipStats>,
-  stat: "attack" | "defense" | "cargo_capacity",
-): number {
-  let total = 0;
-
-  for (const [shipCode, quantity] of Object.entries(fleet)) {
-    const stats = shipStats[shipCode];
-
-    if (!stats || quantity <= 0) {
-      continue;
-    }
-
-    total += stats[stat] * quantity;
-  }
-
-  return total;
-}
-
-function formatExpeditionFleet(fleet: FleetForm): string {
-  const parts: string[] = [];
-
-  for (const [shipCode, quantity] of Object.entries(fleet)) {
-    if (quantity <= 0) {
-      continue;
-    }
-
-    parts.push(formatShipCount(shipCode, quantity));
-  }
-
-  if (parts.length === 0) {
-    return "корабли не выбраны";
-  }
-
-  return parts.join(" · ");
-}
-
-function formatShipCount(shipCode: string, quantity: number): string {
-  const label = shipLabel(shipCode, quantity);
-
-  return `${formatNumber(quantity)} ${label}`;
-}
-
-function shipLabel(shipCode: string, quantity: number): string {
-  if (shipCode === "scout") {
-    return pluralRu(quantity, ["разведчик", "разведчика", "разведчиков"]);
-  }
-
-  if (shipCode === "transport") {
-    return pluralRu(quantity, [
-      "транспортник",
-      "транспортника",
-      "транспортников",
-    ]);
-  }
-
-  if (shipCode === "heavy_transport") {
-    return pluralRu(quantity, [
-      "тяжёлый транспорт",
-      "тяжёлых транспорта",
-      "тяжёлых транспортов",
-    ]);
-  }
-
-  if (shipCode === "fighter") {
-    return pluralRu(quantity, ["истребитель", "истребителя", "истребителей"]);
-  }
-
-  if (shipCode === "corvette") {
-    return pluralRu(quantity, ["корвет", "корвета", "корветов"]);
-  }
-
-  return shipCode;
 }

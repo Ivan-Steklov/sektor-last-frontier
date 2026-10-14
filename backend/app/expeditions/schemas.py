@@ -20,6 +20,9 @@ class StartExpeditionRequest(BaseModel):
 
 class ExpeditionResultPayload(BaseModel):
     outcome: str
+    event_code: str | None = None
+    event_title: str | None = None
+    severity: str | None = None
     metal_found: int = 0
     crystal_found: int = 0
     lost_ships: dict[str, int] = Field(default_factory=dict)
